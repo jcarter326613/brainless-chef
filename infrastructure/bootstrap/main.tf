@@ -7,6 +7,7 @@ locals {
   required_services = toset([
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    "dns.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "run.googleapis.com",
@@ -105,6 +106,11 @@ resource "google_artifact_registry_repository" "containers" {
   depends_on = [google_project_service.required]
 }
 
+data "google_dns_managed_zone" "website" {
+  name    = var.dns_managed_zone_name
+  project = var.project_id
+}
+
 resource "google_service_account" "ci_deployer" {
   account_id   = "brainless-chef-deployer"
   display_name = "Brainless Chef GitHub Actions deployer"
@@ -139,6 +145,34 @@ resource "google_project_iam_member" "deployer_service_usage" {
   project = var.project_id
   role    = "roles/serviceusage.serviceUsageConsumer"
   member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+}
+
+resource "google_project_iam_custom_role" "deployer_dns_record_editor" {
+  role_id     = "brainlessChefDnsRecordEditor"
+  title       = "Brainless Chef DNS Record Editor"
+  description = "Manages Cloud DNS record changes for the Brainless Chef website zone."
+  permissions = [
+    "dns.changes.create",
+    "dns.changes.get",
+    "dns.changes.list",
+    "dns.managedZones.get",
+    "dns.resourceRecordSets.create",
+    "dns.resourceRecordSets.delete",
+    "dns.resourceRecordSets.get",
+    "dns.resourceRecordSets.list",
+    "dns.resourceRecordSets.update"
+  ]
+  stage = "GA"
+
+  depends_on = [google_project_service.required]
+}
+
+# The deployer can change records only in the existing production website zone.
+resource "google_dns_managed_zone_iam_member" "deployer_dns_record_editor" {
+  project      = var.project_id
+  managed_zone = data.google_dns_managed_zone.website.name
+  role         = google_project_iam_custom_role.deployer_dns_record_editor.name
+  member       = "serviceAccount:${google_service_account.ci_deployer.email}"
 }
 
 resource "google_storage_bucket_iam_member" "deployer_terraform_state" {

@@ -23,6 +23,8 @@ Cloud Run owns TLS termination, request routing, health management, and horizont
 
 Development and production have separate Cloud Run services and Terraform state prefixes. Both currently live in Google Cloud project `brainlesschef`, region `us-east1`; separate projects can be introduced later if stronger organizational isolation becomes necessary.
 
+Only production maps `brainlesschef.com` to the production web service. Development remains available only through its generated `run.app` URL. Cloud Run domain mapping terminates TLS directly at Cloud Run, without a load balancer, and Cloud DNS publishes the generated apex records.
+
 Initial services allow unauthenticated invocation so the website and API can be reached directly. This is only appropriate while the API exposes no sensitive or data-changing functionality. Authentication and authorization must be designed before adding such endpoints.
 
 ## Identity boundaries

@@ -21,3 +21,9 @@ variable "github_repository" {
   type        = string
   default     = "jcarter326613/brainless-chef"
 }
+
+variable "dns_managed_zone_name" {
+  description = "Existing Cloud DNS managed zone for the production website domain."
+  type        = string
+  default     = "brainlesschef-com"
+}
