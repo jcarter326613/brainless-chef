@@ -5,7 +5,7 @@ resource "google_cloud_run_v2_service" "api" {
   ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
-    service_account                  = var.runtime_service_account_email
+    service_account                  = var.api_runtime_service_account_email
     timeout                          = "60s"
     max_instance_request_concurrency = 80
 
@@ -24,6 +24,11 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "NODE_ENV"
         value = var.environment == "production" ? "production" : "development"
+      }
+
+      env {
+        name  = "FIRESTORE_DATABASE_ID"
+        value = var.firestore_database_id
       }
 
       resources {
@@ -52,7 +57,7 @@ resource "google_cloud_run_v2_service" "web" {
   ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
-    service_account                  = var.runtime_service_account_email
+    service_account                  = var.web_runtime_service_account_email
     timeout                          = "60s"
     max_instance_request_concurrency = 80
 

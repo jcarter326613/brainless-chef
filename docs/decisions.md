@@ -35,3 +35,9 @@
 **Decision:** Map `brainlesschef.com` directly to the production web service through Cloud Run domain mapping and publish its records in the existing Cloud DNS zone.
 
 **Rationale:** This preserves scale-to-zero Cloud Run pricing and avoids a load balancer or reserved IP. Cloud Run manages the TLS certificate. Domain mapping is a Preview feature with documented limitations, so revisit this decision if production reliability or advanced edge controls require a GA load-balancer-based approach.
+
+## ADR-007: Firestore databases isolated by API IAM
+
+**Decision:** Store recipe data in Firestore Native Mode. Production uses the `(default)` database and development uses a named `development` database. Each environment Terraform state owns its database and future recovery configuration. Each Cloud Run API has a separate runtime service account with `roles/datastore.user` conditioned to its one database; web services have no Firestore data access.
+
+**Rationale:** Firebase Admin SDK requests are authorized with IAM and bypass Firebase Security Rules, while Firestore IAM cannot restrict access to collection paths inside one database. Separate databases are therefore required for an enforced environment boundary. Environment-owned state keeps backup, retention, and recovery choices independent. The production default database retains the single Firestore free quota, and neither database has idle compute cost.

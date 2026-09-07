@@ -3,6 +3,16 @@ provider "google" {
   region  = var.region
 }
 
+resource "google_firestore_database" "database" {
+  project     = var.project_id
+  name        = "(default)"
+  location_id = var.firestore_location_id
+  type        = "FIRESTORE_NATIVE"
+
+  # Never delete recipe data as a side effect of Terraform state teardown.
+  deletion_policy = "ABANDON"
+}
+
 data "google_dns_managed_zone" "website" {
   name    = var.dns_managed_zone_name
   project = var.project_id
@@ -11,12 +21,14 @@ data "google_dns_managed_zone" "website" {
 module "cloud_run" {
   source = "../../modules/cloud-run-environment"
 
-  api_image                     = var.api_image
-  environment                   = "production"
-  project_id                    = var.project_id
-  region                        = var.region
-  runtime_service_account_email = "brainless-chef-production@${var.project_id}.iam.gserviceaccount.com"
-  web_image                     = var.web_image
+  api_image                         = var.api_image
+  api_runtime_service_account_email = "brainless-chef-production-api@${var.project_id}.iam.gserviceaccount.com"
+  environment                       = "production"
+  firestore_database_id             = google_firestore_database.database.name
+  project_id                        = var.project_id
+  region                            = var.region
+  web_runtime_service_account_email = "brainless-chef-production@${var.project_id}.iam.gserviceaccount.com"
+  web_image                         = var.web_image
 }
 
 # This mapping exists only in production, so the apex domain never points at

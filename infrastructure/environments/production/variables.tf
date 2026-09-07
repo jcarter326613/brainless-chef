@@ -8,6 +8,12 @@ variable "region" {
   default = "us-east1"
 }
 
+variable "firestore_location_id" {
+  description = "Firestore location. This cannot be changed after database creation."
+  type        = string
+  default     = "us-east1"
+}
+
 variable "api_image" {
   type    = string
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:latest"

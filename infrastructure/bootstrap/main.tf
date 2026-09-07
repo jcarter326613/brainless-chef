@@ -8,6 +8,7 @@ locals {
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "dns.googleapis.com",
+    "firestore.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "run.googleapis.com",
@@ -15,6 +16,11 @@ locals {
     "sts.googleapis.com",
     "storage.googleapis.com"
   ])
+
+  firestore_databases = {
+    development = "development"
+    production  = "(default)"
+  }
 }
 
 resource "google_project_service" "required" {
@@ -129,6 +135,18 @@ resource "google_service_account" "runtime" {
   depends_on = [google_project_service.required]
 }
 
+# Keep the existing environment runtime identities for the web services. API
+# services receive separate identities because they alone need database access.
+resource "google_service_account" "api_runtime" {
+  for_each = local.firestore_databases
+
+  account_id   = "brainless-chef-${each.key}-api"
+  display_name = "Brainless Chef ${each.key} API runtime"
+  description  = "Firestore-enabled runtime identity for the ${each.key} Cloud Run API."
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_project_iam_member" "deployer_run_admin" {
   project = var.project_id
   role    = "roles/run.admin"
@@ -194,6 +212,54 @@ resource "google_service_account_iam_member" "deployer_runtime_user" {
   service_account_id = each.value.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+}
+
+resource "google_service_account_iam_member" "deployer_api_runtime_user" {
+  for_each = google_service_account.api_runtime
+
+  service_account_id = each.value.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+}
+
+# Firestore evaluates server SDK authorization with IAM, not Security Rules.
+# The condition confines each API identity to one database resource.
+resource "google_project_iam_member" "api_runtime_firestore_user" {
+  for_each = google_service_account.api_runtime
+
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${each.value.email}"
+
+  condition {
+    title       = "${each.key}-firestore-only"
+    description = "Allows the ${each.key} API to access only its Firestore database."
+    expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
+  }
+}
+
+# Environment Terraform refreshes database configuration during every deploy,
+# but CI cannot create, update, delete, or read Firestore documents.
+resource "google_project_iam_custom_role" "deployer_firestore_database_reader" {
+  role_id     = "brainlessChefFirestoreDatabaseReader"
+  title       = "Brainless Chef Firestore Database Reader"
+  description = "Reads Firestore database metadata for Terraform state refreshes."
+  permissions = ["datastore.databases.get"]
+  stage       = "GA"
+}
+
+resource "google_project_iam_member" "deployer_firestore_database_reader" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.deployer_firestore_database_reader.name
+  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+
+  condition {
+    title       = "${each.key}-firestore-database-metadata-only"
+    description = "Allows Terraform to read ${each.key} Firestore database metadata only."
+    expression  = "resource.name == 'projects/${var.project_id}/databases/${each.value}'"
+  }
 }
 
 resource "google_iam_workload_identity_pool" "github" {

@@ -8,6 +8,11 @@ output "deployer_service_account" {
   value       = google_service_account.ci_deployer.email
 }
 
+output "firestore_database_ids" {
+  description = "Firestore database IDs assigned to each environment."
+  value       = local.firestore_databases
+}
+
 output "terraform_state_bucket" {
   description = "GCS bucket used by environment Terraform states."
   value       = google_storage_bucket.terraform_state.name
