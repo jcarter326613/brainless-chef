@@ -244,7 +244,7 @@ resource "google_project_iam_custom_role" "deployer_firestore_database_reader" {
   role_id     = "brainlessChefFirestoreDatabaseReader"
   title       = "Brainless Chef Firestore Database Reader"
   description = "Reads Firestore database metadata for Terraform state refreshes."
-  permissions = ["datastore.databases.get"]
+  permissions = ["datastore.databases.getMetadata"]
   stage       = "GA"
 }
 
