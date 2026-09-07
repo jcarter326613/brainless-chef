@@ -25,21 +25,16 @@ env:
   IMAGE_REPOSITORY: us-east1-docker.pkg.dev/brainlesschef/brainless-chef
 
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+
   deploy:
+    needs: validate
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment || 'development' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.23.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
       - id: auth
         uses: google-github-actions/auth@v2
         with:
