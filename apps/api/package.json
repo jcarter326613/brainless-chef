@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.json",
+    "predev": "pnpm --filter @brainless-chef/database... build",
     "dev": "tsx watch src/index.ts",
+    "premigrate": "pnpm --filter @brainless-chef/database... build",
+    "migrate": "tsx src/migrate.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
-    "express": "^5.1.0",
-    "firebase-admin": "^13.6.0"
+    "@brainless-chef/database": "workspace:*",
+    "express": "^5.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

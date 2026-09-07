@@ -29,7 +29,9 @@ The bootstrap's local `terraform.tfstate` is sensitive operational state. Keep i
 
 Bootstrap grants the CI deployer a custom DNS role on the existing `brainlesschef-com` zone only. It can read the zone and manage record-set changes, but has no project-wide Cloud DNS permission. The deployer must also be a verified Google Search Console owner of `brainlesschef.com` before Terraform can create a Cloud Run domain mapping.
 
-The environment stacks own Firestore Native Mode databases in `us-east1`: production owns `(default)` and development owns `development`. The location selected for the first Firestore database is permanent. The production and development API service accounts receive `roles/datastore.user` only for their assigned database through IAM conditions; web identities have no Firestore data access. CI can read database metadata only to refresh Terraform state and cannot read documents or create, update, or delete databases.
+The environment stacks own Firestore Native Mode databases in `us-east1`: production owns `(default)` and development owns `development`. The location selected for the first Firestore database is permanent. The production and development API and migration service accounts receive `roles/datastore.user` only for their assigned database through IAM conditions; web identities have no Firestore data access. CI can create and execute Cloud Run migration jobs as the migration identities, but CI itself can read database metadata only and cannot read or write documents or create, update, or delete databases.
+
+After introducing the migration identities, reapply `infrastructure/bootstrap` from the trusted administrator workstation before running the updated deployment workflow.
 
 ## Environment state
 
@@ -76,7 +78,19 @@ The `Deploy` GitHub Actions workflow uses the Git commit SHA as an immutable rel
 - A manual production dispatch requires `image_tag`: the full SHA of a development image already deployed and tested. It copies that exact artifact to the production path, unless that production release is already retained for rollback.
 - Configure the GitHub `production` Environment with required reviewers before production use. The workflow's environment binding then enforces approval before it receives its OIDC token.
 
-To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead.
+Before Terraform updates the services, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database without deploying an API revision that would reject its uninitialized migration ledger. The workflow then deploys a single-task `brainless-chef-<environment>-migrate` Cloud Run Job using the release API image and the environment's migration identity, then waits for it to succeed. The CI identity cannot perform the migration directly. A failed migration stops the deployment and leaves the existing services running.
+
+The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure; completed pages resume from their recorded document-ID cursor. If unapplied migration code must change after a partial failure, update its checksum and ensure it is idempotent, because its checkpoints restart from the beginning. Never edit a completed migration or manually clear a live lease. See `packages/firestore-database/README.md` for the full migration and query contract.
+
+Firestore migrations are forward-only. Use staged expand/contract releases for strict schemas:
+
+1. Deploy readers whose strict schema permits both the old shape and an optional new field, without backfilling yet.
+2. In a later release, backfill the new field and deploy writers that always provide it; the previous release can still read both shapes.
+3. Remove the old field only in another release after compatibility with old readers, writers, and rollback images is intentionally no longer required.
+
+Fields used in Firestore filters, ordering, indexes, or cursors must be fully backfilled before a release issues queries against the new field. Runtime query code validates returned documents but never performs document-by-document migration.
+
+To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead. A rollback is permitted only when that image contains the migration command and has the same migration registry as the current database. The migration verification intentionally blocks older images across a migration boundary. Recover from an incompatible migration with a new forward release or a deliberate database restore, not by bypassing the ledger.
 
 ## Changes to IAM
 

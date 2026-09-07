@@ -9,6 +9,8 @@ Brainless Chef is a small-volume web product composed of two independently deplo
 
 Each service is stateless. Recipe data is stored in Firestore Native Mode; object storage and queues are intentionally absent until a product requirement justifies them.
 
+Backend processes access application collections through `packages/database`. That package defines strict Zod document schemas and migrations, then configures the connection-owning `packages/firestore-database` facade. The facade validates every read, query result, and write, and does not expose raw Firestore clients or transactions to application code. It can be extracted into an independent open source package later.
+
 ## Request flow
 
 ```text
@@ -17,6 +19,8 @@ Browser
   -> Cloud Run API service (when the web client calls it)
   -> Firestore database for the API environment
 ```
+
+Deployments run the release API image as a dedicated Cloud Run migration job before updating either service. The job compares the application migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations in resumable transactions. API startup verifies the resulting registry fingerprint and refuses to serve against an outdated database. Runtime reads never migrate documents individually.
 
 Cloud Run owns TLS termination, request routing, health management, and horizontal scaling. Containers listen on `PORT` (Cloud Run supplies it, normally `8080`) and must not depend on local filesystem persistence or in-memory session state.
 
@@ -36,6 +40,7 @@ Initial services allow unauthenticated invocation so the website and API can be 
 - CI receives only image-publishing, Cloud Run administration, Terraform-state access, service-usage, and permission to attach the pre-created runtime identities.
 - Web services use dedicated environment runtime service accounts with no Firestore access.
 - API services use separate environment runtime service accounts. Each has `roles/datastore.user` with an IAM condition permitting access to exactly one Firestore database: production uses `(default)` and development uses `development`.
+- Migration jobs use dedicated environment service accounts with the same one-database IAM boundary. GitHub Actions can create and execute a job as those identities but cannot access Firestore documents itself.
 - Firestore Security Rules do not govern server-side Firebase Admin SDK access. The IAM condition is the enforced boundary for API identities.
 - Each environment Terraform state owns its database and future database-specific recovery settings. Bootstrap owns only the shared API identities and IAM policy.
 

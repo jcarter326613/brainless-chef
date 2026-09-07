@@ -30,6 +30,8 @@ pnpm check
 
 - `apps/api`: Express API deployed to Cloud Run.
 - `apps/web`: React/Vite web application deployed to Cloud Run.
+- `packages/database`: Server-only Zod schemas, validated repositories, and application migrations.
+- `packages/firestore-database`: Generic, extractable typed Firestore data layer and migration engine.
 - `docs`: architecture, operational guidance, and recorded decisions.
 - `infrastructure/bootstrap`: one-time project bootstrap, including remote state and GitHub OIDC.
 - `infrastructure/environments`: independently deployed development and production environments.
