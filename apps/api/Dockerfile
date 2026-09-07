@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/api apps/api
 RUN pnpm --filter @brainless-chef/api build \
-  && pnpm --filter @brainless-chef/api deploy --prod /app
+  && pnpm --filter @brainless-chef/api deploy --legacy --prod /app
 
 FROM node:22-alpine
 

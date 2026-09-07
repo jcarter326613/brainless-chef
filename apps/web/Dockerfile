@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY apps/web apps/web
 RUN pnpm --filter @brainless-chef/web build \
-  && pnpm --filter @brainless-chef/web deploy --prod /app
+  && pnpm --filter @brainless-chef/web deploy --legacy --prod /app
 
 FROM node:22-alpine
 
