@@ -10,6 +10,8 @@
     "build": "pnpm -r build",
     "check": "pnpm typecheck && pnpm build",
     "dev": "pnpm --parallel --stream --filter @brainless-chef/api --filter @brainless-chef/web dev",
+    "dev:api": "pnpm --filter @brainless-chef/api dev",
+    "dev:web": "pnpm --filter @brainless-chef/web dev",
     "typecheck": "pnpm -r typecheck"
   }
 }

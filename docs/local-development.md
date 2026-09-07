@@ -21,6 +21,15 @@ This starts the Express API at `http://localhost:8080` and Vite at `http://local
 curl http://localhost:8080/health
 ```
 
+## VS Code debugging
+
+Open the Run and Debug view in VS Code and choose one of these configurations:
+
+- `API: Run Locally` starts only the API in an integrated terminal.
+- `Web: Debug with Local API` runs the root `pnpm dev` command to start both applications, then opens Chrome under the browser debugger. Set React/TypeScript breakpoints in `apps/web/src`.
+
+The web app does not yet call the API, but the compound configuration keeps the local API ready for those requests as the client grows.
+
 ## Verify changes
 
 ```sh
