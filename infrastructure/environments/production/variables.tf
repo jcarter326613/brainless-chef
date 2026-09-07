@@ -10,10 +10,10 @@ variable "region" {
 
 variable "api_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/api:latest"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:latest"
 }
 
 variable "web_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/web:latest"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:latest"
 }

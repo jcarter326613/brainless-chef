@@ -27,9 +27,13 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       resources {
+        # Explicitly retain request-based billing when resource limits are set.
+        cpu_idle          = true
+        startup_cpu_boost = false
+
         limits = {
           cpu    = "1"
-          memory = "256Mi"
+          memory = "512Mi"
         }
       }
     }
@@ -65,9 +69,13 @@ resource "google_cloud_run_v2_service" "web" {
       }
 
       resources {
+        # Explicitly retain request-based billing when resource limits are set.
+        cpu_idle          = true
+        startup_cpu_boost = false
+
         limits = {
           cpu    = "1"
-          memory = "256Mi"
+          memory = "512Mi"
         }
       }
     }

@@ -43,15 +43,22 @@ terraform -chdir=infrastructure/environments/development plan
 
 If `terraform_state_bucket_name` is changed during bootstrap, change the hard-coded backend bucket in both environment `versions.tf` files and in CI before the first environment initialization. Backend configuration cannot use normal Terraform variables.
 
+## Cost controls
+
+Cloud Run uses request-based CPU allocation and `min_instance_count = 0`; no service instance is kept warm, and CPU and memory are billed only during startup, shutdown, and request handling. Each service caps at two instances. This does not prevent charges from requests, egress, or retained storage.
+
+The state bucket deletes archived state versions after 30 days. Container images are separated by environment: development images expire after 3 days, while the 3 most recent production API and web versions are retained for rollback. Artifact Registry cleanup is asynchronous, so transient versions can remain briefly after they meet a deletion policy.
+
 ## Deployment
 
-The `Deploy` GitHub Actions workflow validates the workspace, builds immutable container tags using the Git commit SHA, pushes them to Artifact Registry, and applies Terraform with those image references.
+The `Deploy` GitHub Actions workflow uses the Git commit SHA as an immutable release identifier. Development builds and deploys the image once; production promotes the tested development image with the selected SHA, without rebuilding it, then applies Terraform with the promoted image reference.
 
 - A push to `main` deploys development.
-- A manual dispatch can target development or production.
+- A manual development dispatch builds the selected commit and deploys it to development.
+- A manual production dispatch requires `image_tag`: the full SHA of a development image already deployed and tested. It copies that exact artifact to the production path, unless that production release is already retained for rollback.
 - Configure the GitHub `production` Environment with required reviewers before production use. The workflow's environment binding then enforces approval before it receives its OIDC token.
 
-To roll back, manually dispatch the workflow for the target environment from the prior known-good commit. This rebuilds and deploys that commit under its immutable SHA tag.
+To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead.
 
 ## Changes to IAM
 

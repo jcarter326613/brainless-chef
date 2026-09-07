@@ -35,6 +35,6 @@ Initial services allow unauthenticated invocation so the website and API can be 
 
 ## Cost posture
 
-Cloud Run services set `min_instance_count` to zero, cap at two instances, use 256 MiB of memory, and use one vCPU. This minimizes idle cost and limits accidental scaling for expected low traffic. The trade-off is occasional cold starts.
+Cloud Run services set `min_instance_count` to zero, cap at two instances, use 512 MiB of memory and one vCPU, and explicitly allocate CPU only while serving requests. Therefore, non-minimum instances are not billed while idle and the services can scale to zero. The trade-off is occasional cold starts.
 
-Artifact Registry and the versioned Terraform state bucket are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention.
+Artifact Registry and the versioned Terraform state bucket are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention. These storage resources are not zero-cost: archived state is retained for 30 days, development images expire after 3 days, and the 3 most recent production versions of each application are retained for rollback.

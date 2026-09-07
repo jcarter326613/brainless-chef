@@ -36,6 +36,18 @@ resource "google_storage_bucket" "terraform_state" {
     enabled = true
   }
 
+  # Retain the current state and a month of rollback history, not every apply forever.
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age        = 30
+      with_state = "ARCHIVED"
+    }
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -44,6 +56,51 @@ resource "google_artifact_registry_repository" "containers" {
   repository_id = "brainless-chef"
   description   = "Brainless Chef Cloud Run container images"
   format        = "DOCKER"
+
+  # Production retains three deployable releases; development artifacts are
+  # short-lived because every main-branch deployment publishes a new image.
+  cleanup_policies {
+    id     = "keep-recent-production-api"
+    action = "KEEP"
+
+    most_recent_versions {
+      keep_count            = 3
+      package_name_prefixes = ["production/api"]
+    }
+  }
+
+  cleanup_policies {
+    id     = "keep-recent-production-web"
+    action = "KEEP"
+
+    most_recent_versions {
+      keep_count            = 3
+      package_name_prefixes = ["production/web"]
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-stale-development-images"
+    action = "DELETE"
+
+    condition {
+      older_than            = "259200s"
+      package_name_prefixes = ["development/"]
+      tag_state             = "ANY"
+    }
+  }
+
+  # KEEP policies above protect the three newest production versions before
+  # this broad deletion policy is evaluated.
+  cleanup_policies {
+    id     = "delete-excess-production-images"
+    action = "DELETE"
+
+    condition {
+      package_name_prefixes = ["production/"]
+      tag_state             = "ANY"
+    }
+  }
 
   depends_on = [google_project_service.required]
 }
