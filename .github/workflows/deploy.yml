@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: brainlesschef
+  GCP_REGION: us-east1
+  IMAGE_REPOSITORY: us-east1-docker.pkg.dev/brainlesschef/brainless-chef
+
+jobs:
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.23.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      - name: Build and publish containers
+        run: |
+          docker build --file apps/api/Dockerfile --tag "${IMAGE_REPOSITORY}/api:${GITHUB_SHA}" .
+          docker build --file apps/web/Dockerfile --tag "${IMAGE_REPOSITORY}/web:${GITHUB_SHA}" .
+          docker push "${IMAGE_REPOSITORY}/api:${GITHUB_SHA}"
+          docker push "${IMAGE_REPOSITORY}/web:${GITHUB_SHA}"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+      - name: Apply Terraform
+        working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve \
+            -var="api_image=${IMAGE_REPOSITORY}/api:${GITHUB_SHA}" \
+            -var="web_image=${IMAGE_REPOSITORY}/web:${GITHUB_SHA}"

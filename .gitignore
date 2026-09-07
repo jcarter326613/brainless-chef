@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.pnpm-store/
+coverage/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.log

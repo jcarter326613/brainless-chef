@@ -1,0 +1,31 @@
+# Architecture Decisions
+
+## ADR-001: pnpm workspace
+
+**Decision:** Use one pnpm workspace for the web and API projects.
+
+**Rationale:** It provides a single lockfile and consistent Node and TypeScript tooling without forcing both applications into one deployable artifact.
+
+## ADR-002: Cloud Run for compute
+
+**Decision:** Deploy web and API as separate Cloud Run services in `us-east1`.
+
+**Rationale:** Cloud Run permits scale-to-zero stateless services, requires no server maintenance, and keeps the independently changing client and API deployable separately. Separate services also preserve the option to make the API private later.
+
+## ADR-003: GCS remote Terraform state
+
+**Decision:** Use a versioned, non-public regional GCS bucket for environment Terraform state.
+
+**Rationale:** Remote state supports CI deployment and recovery from an accidental state change. Versioning is low-cost protection against state corruption. Bootstrap state remains local because it creates the bucket needed by remote backends.
+
+## ADR-004: GitHub OIDC federation
+
+**Decision:** Authenticate GitHub Actions with Workload Identity Federation restricted to `jcarter326613/brainless-chef`.
+
+**Rationale:** Short-lived federated credentials remove secret rotation and the risk of a long-lived service-account JSON key. A repository attribute condition prevents identities from other GitHub repositories using the provider.
+
+## ADR-005: Public initial services
+
+**Decision:** Make the initial web and API Cloud Run services publicly invokable.
+
+**Rationale:** The site needs a public entry point and the placeholder API has no protected behavior. This decision must be revisited before the API handles personal data, authenticated users, mutations, payment details, or other sensitive operations.

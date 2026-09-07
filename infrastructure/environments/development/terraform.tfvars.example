@@ -1,0 +1,4 @@
+# Development uses the default project, region, and image repository values.
+# Override image tags only for a deliberate manual deployment.
+# api_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/api:<tag>"
+# web_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/web:<tag>"
