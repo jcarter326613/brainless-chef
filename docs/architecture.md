@@ -9,7 +9,7 @@ Brainless Chef is a small-volume web product composed of two independently deplo
 
 Each service is stateless. Recipe data is stored in Firestore Native Mode; object storage and queues are intentionally absent until a product requirement justifies them.
 
-Backend processes access application collections through `packages/database`. That package defines strict Zod document schemas and migrations, then configures the connection-owning `packages/firestore-database` facade. The facade validates every read, query result, and write, and does not expose raw Firestore clients or transactions to application code. It can be extracted into an independent open source package later.
+Backend processes access application collections through `packages/database`. That package defines Zod document schemas and optional storage migrations, then configures the connection-owning `packages/firestore-database` facade. The facade validates known fields on every read, query result, and write, and does not expose raw Firestore clients or transactions to application code. It can be extracted into an independent open source package later.
 
 ## Request flow
 
@@ -20,7 +20,7 @@ Browser
   -> Firestore database for the API environment
 ```
 
-Deployments run the release API image as a dedicated Cloud Run migration job before updating either service. The job compares the application migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations in resumable transactions. API startup verifies the resulting registry fingerprint and refuses to serve against an outdated database. Runtime reads never migrate documents individually.
+The release API image can run as a dedicated Cloud Run migration job. The job compares the explicit storage-migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations one document at a time. Document transactions allow unrelated production work to continue while protecting each migrated source document from conflicting writes.
 
 Cloud Run owns TLS termination, request routing, health management, and horizontal scaling. Containers listen on `PORT` (Cloud Run supplies it, normally `8080`) and must not depend on local filesystem persistence or in-memory session state.
 

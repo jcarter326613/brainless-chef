@@ -78,19 +78,22 @@ The `Deploy` GitHub Actions workflow uses the Git commit SHA as an immutable rel
 - A manual production dispatch requires `image_tag`: the full SHA of a development image already deployed and tested. It copies that exact artifact to the production path, unless that production release is already retained for rollback.
 - Configure the GitHub `production` Environment with required reviewers before production use. The workflow's environment binding then enforces approval before it receives its OIDC token.
 
-Before Terraform updates the services, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database without deploying an API revision that would reject its uninitialized migration ledger. The workflow then deploys a single-task `brainless-chef-<environment>-migrate` Cloud Run Job using the release API image and the environment's migration identity, then waits for it to succeed. The CI identity cannot perform the migration directly. A failed migration stops the deployment and leaves the existing services running.
+Before Terraform updates the services, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database without deploying an API revision that would reject its uninitialized migration ledger. For an initial environment, manually dispatch `Deploy` with `run_migrations` enabled; it initializes the ledger before services deploy. Do not use this pre-deployment option for a schema-changing release while an older API revision can still serve traffic.
 
-The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure; completed pages resume from their recorded document-ID cursor. If unapplied migration code must change after a partial failure, update its checksum and ensure it is idempotent, because its checkpoints restart from the beginning. Never edit a completed migration or manually clear a live lease. See `packages/firestore-database/README.md` for the full migration and query contract.
+Compatible releases deploy without changing existing documents. Manually dispatch `Migrate Database` when an explicit storage migration must run, using the deployed API image's full Git SHA. It runs the single-task `brainless-chef-<environment>-migrate` Cloud Run Job under the environment migration identity. The CI identity cannot perform the migration directly. A failed migration leaves the already-deployed compatible services running; unrelated production writes continue while each migrated document is protected by its transaction.
 
-Firestore migrations are forward-only. Use staged expand/contract releases for strict schemas:
+The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure. If migration logic must change after it has started, add a new migration rather than editing the existing one. Never edit a completed migration or manually clear a live lease. See `packages/firestore-database/README.md` for the full migration and query contract.
 
-1. Deploy readers whose strict schema permits both the old shape and an optional new field, without backfilling yet.
-2. In a later release, backfill the new field and deploy writers that always provide it; the previous release can still read both shapes.
-3. Remove the old field only in another release after compatibility with old readers, writers, and rollback images is intentionally no longer required.
+Firestore migrations are forward-only. Use compatible releases for strict schemas:
 
-Fields used in Firestore filters, ordering, indexes, or cursors must be fully backfilled before a release issues queries against the new field. Runtime query code validates returned documents but never performs document-by-document migration.
+1. Retain old fields and make newly introduced fields optional while application versions overlap.
+2. Deploy the compatible application. Reads ignore fields outside the running schema.
+3. Run `Migrate Database` to populate required values, split documents, or update indexed fields.
+4. Make new fields required only after the migration completes and unsafe older application versions are gone.
 
-To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead. A rollback is permitted only when that image contains the migration command and has the same migration registry as the current database. The migration verification intentionally blocks older images across a migration boundary. Recover from an incompatible migration with a new forward release or a deliberate database restore, not by bypassing the ledger.
+Fields used in Firestore filters, ordering, indexes, or cursors must remain compatible during the overlap. Do not issue queries against a new or renamed field until an explicit storage migration has populated it. Runtime query code validates known fields but never modifies documents.
+
+To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead. A rollback is permitted only when that image contains the migration command and has the same explicit migration registry. Recover from an incompatible migration with a new forward release or a deliberate database restore, not by bypassing the ledger.
 
 ## Changes to IAM
 

@@ -5,32 +5,32 @@ import type {
   Transaction,
 } from "firebase-admin/firestore";
 
-export type BackfillMutation =
-  | { type: "delete" }
-  | { type: "set"; data: DocumentData; merge?: boolean }
-  | { type: "skip" };
-
-export interface BackfillOptions {
+export interface DocumentOperation {
   collectionPath: string;
-  pageSize?: number;
-  step: string;
-  transform: (snapshot: QueryDocumentSnapshot) => BackfillMutation;
+  data?: DocumentData;
+  documentId: string;
+  type: "create" | "delete" | "set";
 }
 
-export interface BackfillResult {
+export interface ForEachDocumentOptions {
+  collectionPath: string;
+  name: string;
+  pageSize?: number;
+  targetVersion: string;
+  change: (
+    snapshot: QueryDocumentSnapshot,
+    transaction: Transaction,
+    firestore: Firestore,
+  ) => Promise<readonly DocumentOperation[]>;
+}
+
+export interface DocumentProcessingResult {
   changed: number;
   processed: number;
 }
 
 export interface MigrationContext {
-  backfill(options: BackfillOptions): Promise<BackfillResult>;
-  transactionalStep(
-    step: string,
-    operation: (
-      transaction: Transaction,
-      firestore: Firestore,
-    ) => Promise<void>,
-  ): Promise<void>;
+  forEachDocument(options: ForEachDocumentOptions): Promise<DocumentProcessingResult>;
 }
 
 export interface FirestoreMigration {

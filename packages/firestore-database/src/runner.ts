@@ -7,6 +7,7 @@ import {
   type DocumentData,
   type DocumentReference,
   type Firestore,
+  type QueryDocumentSnapshot,
   type Transaction,
 } from "firebase-admin/firestore";
 
@@ -20,8 +21,9 @@ import {
   validateFirestoreId,
 } from "./registry.js";
 import type {
-  BackfillOptions,
-  BackfillResult,
+  DocumentOperation,
+  DocumentProcessingResult,
+  ForEachDocumentOptions,
   FirestoreMigration,
   MigrationContext,
   MigrationRunnerOptions,
@@ -32,7 +34,9 @@ const DEFAULT_LEASE_DURATION_MS = 5 * 60 * 1000;
 const DEFAULT_METADATA_COLLECTION = "__firestore_migrations";
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 400;
+const MAX_TRANSACTION_WRITES = 500;
 const LEDGER_FORMAT_VERSION = 1;
+const DOCUMENT_VERSION = "__migrationVersion";
 
 interface Lease {
   fencingToken: number;
@@ -224,8 +228,8 @@ async function releaseLease(
   });
 }
 
-function validateStep(step: string): void {
-  validateFirestoreId(step, `Migration step ID "${step}"`);
+function validateName(name: string): void {
+  validateFirestoreId(name, `Migration document-processing name "${name}"`);
 }
 
 function isTransactionSizeError(error: unknown): boolean {
@@ -235,7 +239,9 @@ function isTransactionSizeError(error: unknown): boolean {
 
   return (
     candidate?.code === 8 ||
-    /10\s*mib|request.*too large|transaction.*too large/i.test(message)
+    /10\s*mib|request.*too large|transaction.*too large|maximum.*500|too many.*writes|write.*limit/i.test(
+      message,
+    )
   );
 }
 
@@ -257,8 +263,10 @@ function migrationContext(
   };
 
   return {
-    async backfill(options: BackfillOptions): Promise<BackfillResult> {
-      validateStep(options.step);
+    async forEachDocument(
+      options: ForEachDocumentOptions,
+    ): Promise<DocumentProcessingResult> {
+      validateName(options.name);
       const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
 
       if (
@@ -273,7 +281,7 @@ function migrationContext(
         throw new Error("collectionPath must be non-empty.");
       }
 
-      const stepReference = ledgerReference.collection("steps").doc(options.step);
+      const stepReference = ledgerReference.collection("steps").doc(options.name);
       let effectivePageSize = pageSize;
       let totalChanged = 0;
       let totalProcessed = 0;
@@ -308,20 +316,62 @@ function migrationContext(
 
             const querySnapshot = await transaction.get(query);
             let changed = 0;
+            const changes: {
+              document: QueryDocumentSnapshot;
+              operations: readonly DocumentOperation[];
+            }[] = [];
 
             for (const document of querySnapshot.docs) {
-              const mutation = options.transform(document);
-              if (mutation.type === "delete") {
-                transaction.delete(document.ref);
-                changed += 1;
-              } else if (mutation.type === "set") {
-                if (mutation.merge) {
-                  transaction.set(document.ref, mutation.data, { merge: true });
-                } else {
-                  transaction.set(document.ref, mutation.data);
-                }
-                changed += 1;
+              const version = document.data()[DOCUMENT_VERSION];
+              if (
+                typeof version === "string" &&
+                version >= options.targetVersion
+              ) {
+                continue;
               }
+              const operations = await options.change(document, transaction, firestore);
+              changes.push({ document, operations });
+            }
+
+            // The processing record and lease renewal consume two writes.
+            let writeCount = 2;
+            for (const { document, operations } of changes) {
+              let sourceDeleted = false;
+              writeCount += operations.length + 1;
+              if (writeCount > MAX_TRANSACTION_WRITES) {
+                throw new Error(
+                  `Migration page exceeds Firestore's ${MAX_TRANSACTION_WRITES}-write transaction limit.`,
+                );
+              }
+              for (const operation of operations) {
+                const reference = firestore
+                  .collection(operation.collectionPath)
+                  .doc(operation.documentId);
+                if (operation.type === "delete") {
+                  transaction.delete(
+                    reference,
+                  );
+                  sourceDeleted ||= reference.path === document.ref.path;
+                } else if (operation.type === "create") {
+                  transaction.create(reference, {
+                    ...operation.data!,
+                    [DOCUMENT_VERSION]: options.targetVersion,
+                  });
+                } else {
+                  transaction.set(reference, {
+                    ...operation.data!,
+                    [DOCUMENT_VERSION]: options.targetVersion,
+                  });
+                }
+              }
+              if (!sourceDeleted) {
+                transaction.set(
+                  document.ref,
+                  { [DOCUMENT_VERSION]: options.targetVersion },
+                  { merge: true },
+                );
+              }
+              changed += operations.length;
             }
 
             const complete = querySnapshot.empty;
@@ -374,51 +424,6 @@ function migrationContext(
           return { changed: totalChanged, processed: totalProcessed };
         }
       }
-    },
-    async transactionalStep(
-      step: string,
-      operation: (
-        transaction: Transaction,
-        firestore: Firestore,
-      ) => Promise<void>,
-    ): Promise<void> {
-      validateStep(step);
-      assertHeartbeat();
-      const stepReference = ledgerReference.collection("steps").doc(step);
-
-      await firestore.runTransaction(async (transaction) => {
-        const [leaseSnapshot, ledgerSnapshot, stepSnapshot] =
-          await transaction.getAll(
-            leaseReference,
-            ledgerReference,
-            stepReference,
-          );
-        assertLeaseData(leaseSnapshot.data(), lease);
-        assertRunningMigration(ledgerSnapshot.data());
-
-        const stepData = stepSnapshot.data();
-        if (
-          stepData?.checksum === migration.checksum &&
-          stepData.status === "completed"
-        ) {
-          return;
-        }
-
-        await operation(transaction, firestore);
-        transaction.set(
-          stepReference,
-          {
-            checksum: migration.checksum,
-            status: "completed",
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
-        transaction.update(leaseReference, {
-          expiresAt: leaseExpiration(leaseDurationMs),
-          renewedAt: FieldValue.serverTimestamp(),
-        });
-      });
     },
   };
 }

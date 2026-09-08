@@ -1,7 +1,4 @@
-import { database } from "@brainless-chef/database";
 import express from "express";
-
-await database.assertCurrent();
 
 const app = express();
 const port = Number(process.env.PORT ?? 8080);

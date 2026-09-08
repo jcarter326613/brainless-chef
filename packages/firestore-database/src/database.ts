@@ -2,6 +2,7 @@ import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import {
   getFirestore,
   type DocumentData,
+  type DocumentSnapshot,
   type Firestore,
   type Query,
   type QueryDocumentSnapshot,
@@ -10,47 +11,58 @@ import {
 } from "firebase-admin/firestore";
 import { z } from "zod";
 
-import { assertMigrationsCurrent, assertMigrationsCurrentInTransaction } from "./status.js";
 import { defineMigrations } from "./registry.js";
 import { runMigrations } from "./runner.js";
 import type {
-  BackfillMutation,
+  DocumentOperation,
   FirestoreMigration,
   MigrationRunResult,
 } from "./types.js";
 
-export class DocumentValidationError extends Error {
-  readonly collectionPath: string;
-  readonly documentId: string;
-  readonly cause: z.ZodError;
+const DOCUMENT_VERSION = "__migrationVersion";
 
+export class DocumentValidationError extends Error {
   constructor(
-    collectionPath: string,
-    documentId: string,
-    cause: z.ZodError,
+    readonly collectionPath: string,
+    readonly documentId: string,
+    readonly cause: z.ZodError,
   ) {
     super(
-      `Document "${collectionPath}/${documentId}" does not match its current schema: ${cause.message}`,
+      `Document "${collectionPath}/${documentId}" does not match its schema: ${cause.message}`,
     );
     this.name = "DocumentValidationError";
-    this.collectionPath = collectionPath;
-    this.documentId = documentId;
-    this.cause = cause;
   }
 }
 
-export interface CollectionDefinition<Schema extends z.ZodType = z.ZodType> {
+export class ReservedDocumentPropertyError extends Error {
+  constructor() {
+    super(`"${DOCUMENT_VERSION}" is managed by the Firestore database facade.`);
+    this.name = "ReservedDocumentPropertyError";
+  }
+}
+
+export interface VersionedDocumentSchema<Output extends object = object>
+  extends z.ZodType<Output> {
+  readonly shape: Record<string, unknown>;
+  strip(): z.ZodType<Output>;
+}
+
+export interface CollectionDefinition<
+  Schema extends VersionedDocumentSchema = VersionedDocumentSchema,
+> {
   path: string;
   schema: Schema;
 }
 
-export function defineCollection<Schema extends z.ZodType>(
+export function defineCollection<Schema extends VersionedDocumentSchema>(
   definition: CollectionDefinition<Schema>,
 ): CollectionDefinition<Schema> {
   if (!definition.path || definition.path.includes("/")) {
     throw new Error("Collection paths must be a single, non-empty collection ID.");
   }
-
+  if (DOCUMENT_VERSION in definition.schema.shape) {
+    throw new ReservedDocumentPropertyError();
+  }
   return Object.freeze({ ...definition });
 }
 
@@ -91,7 +103,7 @@ export interface QueryOptions<T> {
 }
 
 export interface DatabaseCollection<T extends object> {
-  create(id: string, data: T): Promise<void>;
+  create(data: T): Promise<StoredDocument<T>>;
   delete(id: string): Promise<void>;
   get(id: string): Promise<StoredDocument<T> | undefined>;
   query(options?: QueryOptions<T>): Promise<StoredDocument<T>[]>;
@@ -103,25 +115,45 @@ export type DatabaseCollections<Definitions extends CollectionDefinitions> = {
   [Name in keyof Definitions]: DatabaseCollection<DocumentFor<Definitions[Name]>>;
 };
 
-export type DatabaseBackfillMutation =
-  | { type: "delete" }
-  | { type: "set"; data: Record<string, unknown>; merge?: boolean }
-  | { type: "skip" };
+export type DatabaseReadCollections<Definitions extends CollectionDefinitions> = {
+  [Name in keyof Definitions]: Pick<
+    DatabaseCollection<DocumentFor<Definitions[Name]>>,
+    "get" | "query"
+  >;
+};
+
+export type DatabaseDocumentOperation<Definitions extends CollectionDefinitions> = {
+  [Name in keyof Definitions & string]:
+    | { collection: Name; id: string; type: "delete" }
+    | {
+        collection: Name;
+        data: DocumentFor<Definitions[Name]>;
+        id: string;
+        type: "create" | "set";
+      };
+}[keyof Definitions & string];
+
+export interface DatabaseMigrationContext<Definitions extends CollectionDefinitions> {
+  forEachDocument<Name extends keyof Definitions & string>(options: {
+    collection: Name;
+    name: string;
+    change: (
+      document: StoredDocument<DocumentFor<Definitions[Name]>>,
+      context: {
+        newId<Collection extends keyof Definitions & string>(collection: Collection): string;
+        read: { collections: DatabaseReadCollections<Definitions> };
+      },
+    ) =>
+      | readonly DatabaseDocumentOperation<Definitions>[]
+      | Promise<readonly DatabaseDocumentOperation<Definitions>[]>;
+  }): Promise<{ changed: number; processed: number }>;
+}
 
 export interface DatabaseMigration<Definitions extends CollectionDefinitions> {
   checksum: string;
   description: string;
   id: string;
   run(context: DatabaseMigrationContext<Definitions>): Promise<void>;
-}
-
-export interface DatabaseMigrationContext<Definitions extends CollectionDefinitions> {
-  backfill<Name extends keyof Definitions & string>(options: {
-    collection: Name;
-    pageSize?: number;
-    step: string;
-    transform: (document: { data: unknown; id: string }) => DatabaseBackfillMutation;
-  }): Promise<{ changed: number; processed: number }>;
 }
 
 export function defineDatabaseMigrations<Definitions extends CollectionDefinitions>(
@@ -135,7 +167,6 @@ export function defineDatabaseMigrations<Definitions extends CollectionDefinitio
       run: async () => undefined,
     })),
   );
-
   return Object.freeze([...migrations]);
 }
 
@@ -146,7 +177,6 @@ export interface FirestoreDatabaseOptions<Definitions extends CollectionDefiniti
 }
 
 export interface FirestoreDatabase<Definitions extends CollectionDefinitions> {
-  assertCurrent(): Promise<void>;
   collections: DatabaseCollections<Definitions>;
   migrate(): Promise<MigrationRunResult>;
   transaction<Result>(
@@ -159,18 +189,30 @@ const databases = new Map<
   { configurationKey: string; database: FirestoreDatabase<CollectionDefinitions> }
 >();
 
-function getManagedFirestore(databaseId: string): Firestore {
+function managedFirestore(databaseId: string): Firestore {
   if (!databaseId) {
     throw new Error("databaseId must be configured for Firestore access.");
   }
-
-  const app =
-    getApps()[0] ?? initializeApp({ credential: applicationDefault() });
+  const app = getApps()[0] ?? initializeApp({ credential: applicationDefault() });
   return getFirestore(app, databaseId);
 }
 
-function firestoreData(data: object): DocumentData {
-  return data as DocumentData;
+function parse<T extends object>(
+  schema: z.ZodType<T>,
+  data: unknown,
+  path: string,
+  id: string,
+): T {
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    throw new DocumentValidationError(path, id, result.error);
+  }
+  return result.data;
+}
+
+function visible(data: DocumentData): DocumentData {
+  const { [DOCUMENT_VERSION]: _version, ...document } = data;
+  return document;
 }
 
 function buildQuery<T extends object>(
@@ -179,7 +221,6 @@ function buildQuery<T extends object>(
   options: QueryOptions<T> | undefined,
 ): Query<DocumentData> {
   let query: Query<DocumentData> = firestore.collection(path);
-
   for (const filter of options?.where ?? []) {
     query = query.where(filter.field, filter.operator, filter.value);
   }
@@ -192,60 +233,46 @@ function buildQuery<T extends object>(
     }
     query = query.limit(options.limit);
   }
-
   return query;
 }
 
 function collectionFacade<T extends object>(
   firestore: Firestore,
-  definition: CollectionDefinition<z.ZodType<T>>,
-  guardedTransaction: <Result>(
-    operation: (transaction: Transaction) => Promise<Result>,
-  ) => Promise<Result>,
+  definition: CollectionDefinition<VersionedDocumentSchema<T>>,
+  currentVersion: string,
   transaction?: Transaction,
 ): DatabaseCollection<T> {
   const collection = firestore.collection(definition.path);
-  const parse = (
-    snapshot: QueryDocumentSnapshot<DocumentData>,
-  ): StoredDocument<T> => {
-    const result = definition.schema.safeParse(snapshot.data());
-    if (!result.success) {
-      throw new DocumentValidationError(
-        definition.path,
-        snapshot.id,
-        result.error,
-      );
-    }
-    return { data: result.data, id: snapshot.id };
-  };
+  const parseRead = (snapshot: QueryDocumentSnapshot<DocumentData>): StoredDocument<T> => ({
+    data: parse(definition.schema.strip(), visible(snapshot.data()), definition.path, snapshot.id),
+    id: snapshot.id,
+  });
   const parseWrite = (id: string, data: T): T => {
-    const result = definition.schema.safeParse(data);
-    if (!result.success) {
-      throw new DocumentValidationError(definition.path, id, result.error);
+    if (DOCUMENT_VERSION in data) {
+      throw new ReservedDocumentPropertyError();
     }
-    return result.data;
+    return parse(definition.schema, data, definition.path, id);
   };
-  const withinTransaction = <Result>(
+  const withTransaction = <Result>(
     operation: (activeTransaction: Transaction) => Promise<Result>,
   ): Promise<Result> =>
-    transaction === undefined
-      ? guardedTransaction(operation)
-      : operation(transaction);
+    transaction === undefined ? firestore.runTransaction(operation) : operation(transaction);
+  const stored = (data: T, version: string): DocumentData => ({
+    ...data,
+    [DOCUMENT_VERSION]: version,
+  });
 
   return {
-    async create(id, data) {
+    async create(data) {
+      const id = collection.doc().id;
       const validated = parseWrite(id, data);
-      await withinTransaction(async (activeTransaction) => {
-        const reference = collection.doc(id);
-        const existing = await activeTransaction.get(reference);
-        if (existing.exists) {
-          throw new Error(`Document "${definition.path}/${id}" already exists.`);
-        }
-        activeTransaction.create(reference, firestoreData(validated));
+      await withTransaction(async (activeTransaction) => {
+        activeTransaction.create(collection.doc(id), stored(validated, currentVersion));
       });
+      return { data: validated, id };
     },
     async delete(id) {
-      await withinTransaction(async (activeTransaction) => {
+      await withTransaction(async (activeTransaction) => {
         activeTransaction.delete(collection.doc(id));
       });
     },
@@ -255,23 +282,26 @@ function collectionFacade<T extends object>(
           ? await collection.doc(id).get()
           : await transaction.get(collection.doc(id));
       return snapshot.exists
-        ? parse(snapshot as QueryDocumentSnapshot<DocumentData>)
+        ? parseRead(snapshot as QueryDocumentSnapshot<DocumentData>)
         : undefined;
     },
     async query(options) {
       const query = buildQuery(firestore, definition.path, options);
-      const snapshot =
-        transaction === undefined ? await query.get() : await transaction.get(query);
-      return snapshot.docs.map(parse);
+      const snapshot = transaction === undefined ? await query.get() : await transaction.get(query);
+      return snapshot.docs.map(parseRead);
     },
     async set(id, data) {
       const validated = parseWrite(id, data);
-      await withinTransaction(async (activeTransaction) => {
-        activeTransaction.set(collection.doc(id), firestoreData(validated));
+      await withTransaction(async (activeTransaction) => {
+        const snapshot = await activeTransaction.get(collection.doc(id));
+        const version = snapshot.exists
+          ? String((snapshot.data() as DocumentData)[DOCUMENT_VERSION] ?? "")
+          : currentVersion;
+        activeTransaction.set(collection.doc(id), stored(validated, version));
       });
     },
     async update(id, updater) {
-      return withinTransaction(async (activeTransaction) => {
+      return withTransaction(async (activeTransaction) => {
         const reference = collection.doc(id);
         const snapshot = await activeTransaction.get(reference);
         if (!snapshot.exists) {
@@ -279,9 +309,10 @@ function collectionFacade<T extends object>(
         }
         const updated = parseWrite(
           id,
-          updater(parse(snapshot as QueryDocumentSnapshot<DocumentData>).data),
+          updater(parseRead(snapshot as QueryDocumentSnapshot<DocumentData>).data),
         );
-        activeTransaction.set(reference, firestoreData(updated));
+        const version = String((snapshot.data() as DocumentData)[DOCUMENT_VERSION] ?? "");
+        activeTransaction.set(reference, stored(updated, version));
         return updated;
       });
     },
@@ -309,88 +340,94 @@ export function createFirestoreDatabase<Definitions extends CollectionDefinition
     return existing.database as unknown as FirestoreDatabase<Definitions>;
   }
 
-  const firestore = getManagedFirestore(options.databaseId);
-  const internalMigrations: readonly FirestoreMigration[] = migrations.map(
-    (migration) => ({
-      checksum: migration.checksum,
-      description: migration.description,
-      id: migration.id,
-      async run(context) {
-        await migration.run({
-          async backfill(backfillOptions) {
-            const definition = options.collections[backfillOptions.collection];
-            if (!definition) {
-              throw new Error(
-                `Migration "${migration.id}" refers to an unknown collection "${backfillOptions.collection}".`,
-              );
-            }
-
-            return context.backfill({
-              collectionPath: definition.path,
-              pageSize: backfillOptions.pageSize,
-              step: backfillOptions.step,
-              transform(snapshot): BackfillMutation {
-                const mutation = backfillOptions.transform({
-                  data: snapshot.data(),
-                  id: snapshot.id,
-                });
-                if (mutation.type !== "set") {
-                  return mutation;
-                }
-
-                const finalData = mutation.merge
-                  ? { ...snapshot.data(), ...mutation.data }
-                  : mutation.data;
-                const parsed = definition.schema.safeParse(finalData);
-                if (!parsed.success) {
-                  throw new DocumentValidationError(
-                    definition.path,
-                    snapshot.id,
-                    parsed.error,
-                  );
-                }
-                return mutation.merge
-                  ? { ...mutation, data: firestoreData(mutation.data) }
-                  : { ...mutation, data: firestoreData(parsed.data as object) };
-              },
-            });
-          },
-        });
-      },
-    }));
-
-  const guardedTransaction = <Result>(
-    operation: (transaction: Transaction) => Promise<Result>,
-  ): Promise<Result> =>
-    firestore.runTransaction(async (transaction) => {
-      await assertMigrationsCurrentInTransaction(
-        transaction,
-        firestore,
-        internalMigrations,
-      );
-      return operation(transaction);
-    });
+  const firestore = managedFirestore(options.databaseId);
+  const currentVersion = migrations.at(-1)?.id ?? "";
   const collectionsFor = (transaction?: Transaction): DatabaseCollections<Definitions> =>
     Object.fromEntries(
       Object.entries(options.collections).map(([name, definition]) => [
         name,
         collectionFacade(
           firestore,
-          definition as CollectionDefinition<z.ZodType<object>>,
-          guardedTransaction,
+          definition as CollectionDefinition<VersionedDocumentSchema<object>>,
+          currentVersion,
           transaction,
         ),
       ]),
     ) as unknown as DatabaseCollections<Definitions>;
 
+  const internalMigrations: readonly FirestoreMigration[] = migrations.map((migration) => ({
+    checksum: migration.checksum,
+    description: migration.description,
+    id: migration.id,
+    async run(context) {
+      await migration.run({
+        async forEachDocument(processing) {
+          const definition = options.collections[processing.collection];
+          if (!definition) {
+            throw new Error(
+              `Migration "${migration.id}" refers to an unknown collection "${processing.collection}".`,
+            );
+          }
+          return context.forEachDocument({
+            collectionPath: definition.path,
+            name: processing.name,
+            targetVersion: migration.id,
+            async change(snapshot, transaction, activeFirestore) {
+              const document = {
+                data: parse(
+                  definition.schema.strip(),
+                  visible(snapshot.data()),
+                  definition.path,
+                  snapshot.id,
+                ),
+                id: snapshot.id,
+              } as StoredDocument<DocumentFor<Definitions[typeof processing.collection]>>;
+              const operations = await processing.change(document, {
+                newId(name) {
+                  const target = options.collections[name];
+                  if (!target) {
+                    throw new Error(`Migration "${migration.id}" refers to an unknown collection "${name}".`);
+                  }
+                  return activeFirestore.collection(target.path).doc().id;
+                },
+                read: {
+                  collections: collectionsFor(transaction) as DatabaseReadCollections<Definitions>,
+                },
+              });
+              return operations.map((operation): DocumentOperation => {
+                const target = options.collections[operation.collection];
+                if (!target) {
+                  throw new Error(
+                    `Migration "${migration.id}" refers to an unknown collection "${operation.collection}".`,
+                  );
+                }
+                if (operation.type === "delete") {
+                  return {
+                    collectionPath: target.path,
+                    documentId: operation.id,
+                    type: "delete",
+                  };
+                }
+                const data = parse(target.schema, operation.data, target.path, operation.id);
+                return {
+                  collectionPath: target.path,
+                  data: { ...data },
+                  documentId: operation.id,
+                  type: operation.type,
+                };
+              });
+            },
+          });
+        },
+      });
+    },
+  }));
+
   const database: FirestoreDatabase<Definitions> = {
-    assertCurrent: () => assertMigrationsCurrent(firestore, internalMigrations),
     collections: collectionsFor(),
     migrate: () => runMigrations(firestore, internalMigrations),
     transaction: (operation) =>
-      guardedTransaction((transaction) =>
-        operation({ collections: collectionsFor(transaction) }),
-      ),
+      firestore.runTransaction((transaction) => operation({ collections: collectionsFor(transaction) })),
   };
   databases.set(options.databaseId, {
     configurationKey,

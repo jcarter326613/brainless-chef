@@ -14,14 +14,16 @@ fencing.
   facade from `src/database.ts`. API handlers and backend jobs must not access
   application collections through raw Firestore calls.
 - Use the typed operations on `database.collections`. They validate all writes,
-  point reads, and every document returned by a query.
+  point reads, and every document returned by a query, stripping fields outside
+  the running schema.
 - Build queries with the typed declarative `where`, `orderBy`, and `limit`
   options. Query results are never migrated on read and invalid documents are
   never silently skipped.
-- The facade owns all write transactions and blocks them unless the migration
-  ledger matches the configured registry and no migration is running.
-- Append migrations to `src/migrations.ts`; never reorder, delete, or edit a
-  migration that has run in a shared environment.
+- Migrations and normal application writes use transactions, so conflicting
+  changes to one document retry safely while unrelated production work continues.
+- Add explicit storage migrations to `src/database.ts` only after every
+  application that requires the old stored shape is gone. Never reorder,
+  delete, or edit a migration that has run in a shared environment.
 - Follow the query and expand/contract requirements in
   `packages/firestore-database/README.md`.
 
@@ -33,7 +35,6 @@ import { z } from "zod";
 import {
   createFirestoreDatabase,
   defineCollection,
-  defineDatabaseMigrations,
 } from "@brainless-chef/firestore-database";
 
 const exampleSchema = z
@@ -43,13 +44,15 @@ const exampleSchema = z
   .strict();
 
 const collections = {
-  examples: defineCollection({ path: "examples", schema: exampleSchema }),
+  examples: defineCollection({
+    path: "examples",
+    schema: exampleSchema,
+  }),
 };
 
 export const database = createFirestoreDatabase({
   collections,
   databaseId: process.env.FIRESTORE_DATABASE_ID!,
-  migrations: defineDatabaseMigrations<typeof collections>([]),
 });
 
 const namedExamples = await database.collections.examples.query({
@@ -57,6 +60,6 @@ const namedExamples = await database.collections.examples.query({
 });
 ```
 
-The migration registry is intentionally empty until the first application
-document schema is introduced. The migration command still initializes and
-fingerprints the ledger, which makes later schema drift detectable.
+The collection map is intentionally empty until the first application document
+schema is introduced. See `packages/firestore-database/README.md` for
+compatible-release and migration requirements.
