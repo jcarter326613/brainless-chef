@@ -110,3 +110,20 @@ await database.migrate();
 Never edit a completed migration ID or checksum. The migration ledger records
 failures and completed document-processing steps so rerunning the same release
 continues safely.
+
+## Testing
+
+Application tests should mock `@brainless-chef/database` with only the typed
+collection operations they need. They do not need Firestore.
+
+The package has fast mocked unit tests and an emulator integration suite. Run
+the latter from the workspace root:
+
+```sh
+pnpm test:integration
+```
+
+The integration suite uses the real Firebase Admin SDK and Firestore emulator
+to verify transaction ordering, generated IDs, lease contention, and migration
+resume behavior. It does not validate production IAM policies or every
+production index configuration.

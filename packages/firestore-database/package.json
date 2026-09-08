@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "test": "vitest run",
+    "test": "vitest run --exclude test/integration/**",
+    "test:integration": "vitest run test/integration",
     "typecheck": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
