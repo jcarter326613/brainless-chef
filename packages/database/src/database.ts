@@ -1,6 +1,6 @@
 import {
   createFirestoreDatabase,
-} from "@brainless-chef/firestore-database";
+} from "firestore-database";
 
 const databaseId = process.env.FIRESTORE_DATABASE_ID;
 if (!databaseId) {

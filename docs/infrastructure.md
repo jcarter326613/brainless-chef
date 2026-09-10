@@ -82,7 +82,7 @@ Before Terraform updates the services, the workflow first applies the environmen
 
 Compatible releases deploy without changing existing documents. Manually dispatch `Migrate Database` when an explicit storage migration must run, using the deployed API image's full Git SHA. It runs the single-task `brainless-chef-<environment>-migrate` Cloud Run Job under the environment migration identity. The CI identity cannot perform the migration directly. A failed migration leaves the already-deployed compatible services running; unrelated production writes continue while each migrated document is protected by its transaction.
 
-The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure. If migration logic must change after it has started, add a new migration rather than editing the existing one. Never edit a completed migration or manually clear a live lease. See `packages/firestore-database/README.md` for the full migration and query contract.
+The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure. If migration logic must change after it has started, add a new migration rather than editing the existing one. Never edit a completed migration or manually clear a live lease. See the [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database) for the full migration and query contract.
 
 Firestore migrations are forward-only. Use compatible releases for strict schemas:
 

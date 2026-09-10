@@ -9,7 +9,7 @@ Brainless Chef is a small-volume web product composed of two independently deplo
 
 Each service is stateless. Recipe data is stored in Firestore Native Mode; object storage and queues are intentionally absent until a product requirement justifies them.
 
-Backend processes access application collections through `packages/database`. That package defines Zod document schemas and optional storage migrations, then configures the connection-owning `packages/firestore-database` facade. The facade validates known fields on every read, query result, and write, and does not expose raw Firestore clients or transactions to application code. It can be extracted into an independent open source package later.
+Backend processes access application collections through `packages/database`. That package defines Zod document schemas and optional storage migrations, then configures the connection-owning [`firestore-database`](https://github.com/jcarter326613/firestore-database) facade. The facade validates known fields on every read, query result, and write, and does not expose raw Firestore clients or transactions to application code.
 
 ## Request flow
 

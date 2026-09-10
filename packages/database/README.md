@@ -2,7 +2,8 @@
 
 `@brainless-chef/database` defines Brainless Chef's server-only Zod schemas,
 collection map, and ordered migration registry. It configures the generic,
-connection-owning `packages/firestore-database` facade, which performs all
+connection-owning [`firestore-database`](https://github.com/jcarter326613/firestore-database)
+facade, which performs all
 Firebase Admin access, validation, querying, transactions, and migration
 fencing.
 
@@ -24,8 +25,8 @@ fencing.
 - Add explicit storage migrations to `src/database.ts` only after every
   application that requires the old stored shape is gone. Never reorder,
   delete, or edit a migration that has run in a shared environment.
-- Follow the query and expand/contract requirements in
-  `packages/firestore-database/README.md`.
+- Follow the query and expand/contract requirements in the
+  [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database).
 
 Example repository definition:
 
@@ -35,7 +36,7 @@ import { z } from "zod";
 import {
   createFirestoreDatabase,
   defineCollection,
-} from "@brainless-chef/firestore-database";
+} from "firestore-database";
 
 const exampleSchema = z
   .object({
@@ -61,5 +62,6 @@ const namedExamples = await database.collections.examples.query({
 ```
 
 The collection map is intentionally empty until the first application document
-schema is introduced. See `packages/firestore-database/README.md` for
-compatible-release and migration requirements.
+schema is introduced. See the
+[`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)
+for compatible-release and migration requirements.
