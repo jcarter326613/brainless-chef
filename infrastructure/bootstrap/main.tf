@@ -147,6 +147,16 @@ resource "google_service_account" "api_runtime" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_service_account" "migration_runtime" {
+  for_each = local.firestore_databases
+
+  account_id   = "brainless-${each.key}-migrator"
+  display_name = "Brainless Chef ${each.key} database migrator"
+  description  = "Firestore migration job identity for the ${each.key} database."
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_project_iam_member" "deployer_run_admin" {
   project = var.project_id
   role    = "roles/run.admin"
@@ -222,8 +232,16 @@ resource "google_service_account_iam_member" "deployer_api_runtime_user" {
   member             = "serviceAccount:${google_service_account.ci_deployer.email}"
 }
 
+resource "google_service_account_iam_member" "deployer_migration_runtime_user" {
+  for_each = google_service_account.migration_runtime
+
+  service_account_id = each.value.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+}
+
 # Firestore evaluates server SDK authorization with IAM, not Security Rules.
-# The condition confines each API identity to one database resource.
+# The conditions confine each API and migration identity to one database.
 resource "google_project_iam_member" "api_runtime_firestore_user" {
   for_each = google_service_account.api_runtime
 
@@ -234,6 +252,20 @@ resource "google_project_iam_member" "api_runtime_firestore_user" {
   condition {
     title       = "${each.key}-firestore-only"
     description = "Allows the ${each.key} API to access only its Firestore database."
+    expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
+  }
+}
+
+resource "google_project_iam_member" "migration_runtime_firestore_user" {
+  for_each = google_service_account.migration_runtime
+
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${each.value.email}"
+
+  condition {
+    title       = "${each.key}-migration-firestore-only"
+    description = "Allows the ${each.key} migrator to access only its Firestore database."
     expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
   }
 }

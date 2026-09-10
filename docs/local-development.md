@@ -21,6 +21,17 @@ This starts the Express API at `http://localhost:8080` and Vite at `http://local
 curl http://localhost:8080/health
 ```
 
+The API now verifies the Firestore migration ledger before listening. Configure Application Default Credentials and select the development database before running the API:
+
+```sh
+gcloud auth application-default login
+export FIRESTORE_DATABASE_ID=development
+pnpm --filter @brainless-chef/api migrate
+pnpm dev
+```
+
+The migration command accesses the shared development database with your current Application Default Credentials. Run it only with an identity intentionally granted access to that database. When using a Firestore emulator, also set `FIRESTORE_EMULATOR_HOST`; never point emulator work at production.
+
 ## VS Code debugging
 
 Open the Run and Debug view in VS Code and choose one of these configurations:
@@ -46,4 +57,4 @@ docker build --file apps/web/Dockerfile --tag brainless-chef-web:local .
 
 ## Configuration
 
-Cloud Run supplies the API's `PORT`; local development defaults it to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+Cloud Run supplies the API's `PORT` and `FIRESTORE_DATABASE_ID`; local development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.

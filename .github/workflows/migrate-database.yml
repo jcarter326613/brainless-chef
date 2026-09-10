@@ -1,0 +1,91 @@
+name: Migrate Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment whose already-deployed compatible release should migrate data.
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+      image_tag:
+        description: Full Git SHA of the deployed API image containing the target schema mappings.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT_ID: brainlesschef
+  GCP_REGION: us-east1
+  IMAGE_REPOSITORY: us-east1-docker.pkg.dev/brainlesschef/brainless-chef
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate image tag
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ ! "${IMAGE_TAG}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "image_tag must be a full Git SHA." >&2
+            exit 1
+          fi
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Verify the image is deployed
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+          RELEASE_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          EXPECTED_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}"
+          DEPLOYED_IMAGE="$(gcloud run services describe "brainless-chef-${DEPLOYMENT_ENVIRONMENT}-api" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --format='value(spec.template.spec.containers[0].image)')"
+          if [[ "${DEPLOYED_IMAGE}" != "${EXPECTED_IMAGE}" ]]; then
+            echo "The selected image is not the currently deployed API image." >&2
+            exit 1
+          fi
+      - name: Run database migrations
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+          RELEASE_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [[ "${DEPLOYMENT_ENVIRONMENT}" == "production" ]]; then
+            FIRESTORE_DATABASE_ID="(default)"
+          else
+            FIRESTORE_DATABASE_ID="development"
+          fi
+
+          gcloud run jobs deploy "brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --image "${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}" \
+            --service-account "brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --set-env-vars "FIRESTORE_DATABASE_ID=${FIRESTORE_DATABASE_ID}" \
+            --command node \
+            --args dist/migrate.js \
+            --tasks 1 \
+            --max-retries 0 \
+            --task-timeout 3600s \
+            --quiet
+          gcloud run jobs execute "brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --wait

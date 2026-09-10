@@ -18,10 +18,19 @@ on:
         description: Tested development image Git SHA. Required for production.
         required: false
         type: string
+      run_migrations:
+        description: Initialize a new database before its first service deployment.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
   id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'development' }}
+  cancel-in-progress: false
 
 env:
   GCP_PROJECT_ID: brainlesschef
@@ -86,6 +95,43 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
+      - name: Ensure Firestore database exists
+        working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve \
+            -target=google_firestore_database.database
+      - name: Run database migrations
+        if: inputs.run_migrations == true
+        env:
+          RELEASE_IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          if [[ "${DEPLOYMENT_ENVIRONMENT}" == "production" ]]; then
+            FIRESTORE_DATABASE_ID="(default)"
+          else
+            FIRESTORE_DATABASE_ID="development"
+          fi
+
+          MIGRATION_JOB="brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate"
+          MIGRATION_SERVICE_ACCOUNT="brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          API_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}"
+
+          gcloud run jobs deploy "${MIGRATION_JOB}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --image "${API_IMAGE}" \
+            --service-account "${MIGRATION_SERVICE_ACCOUNT}" \
+            --set-env-vars "FIRESTORE_DATABASE_ID=${FIRESTORE_DATABASE_ID}" \
+            --command node \
+            --args dist/migrate.js \
+            --tasks 1 \
+            --max-retries 0 \
+            --task-timeout 3600s \
+            --quiet
+          gcloud run jobs execute "${MIGRATION_JOB}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --wait
       - name: Apply Terraform
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |
