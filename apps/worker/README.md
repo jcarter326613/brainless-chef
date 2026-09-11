@@ -1,13 +1,18 @@
 # Recipe inference worker
 
 The worker processes one Firestore inference job identified by `JOB_ID`. Its container
-includes the official Apache-2.0 Qwen2.5 1.5B Instruct Q4_K_M GGUF and runs it locally on CPU with
+includes the official Apache-2.0 Qwen2.5 7B Instruct Q4_K_M GGUF and runs it on Cloud Run CPU with
 `node-llama-cpp`; normal executions do not download model files.
 
 The model is pinned to Hugging Face revision
-`91cad51170dc346986eccefdc2dd33a9da36ead9` and SHA-256
-`6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e`.
-Its Apache 2.0 model license is copied to `/models/MODEL-LICENSE` in the image.
+`bb5d59e06d9551d752d08b292a50eb208b07ab1f`. The official quantization is split into
+two GGUF files, both included unmodified in the image and verified during its build:
+
+- `qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf`: `dfce12e3862a5283ccfb88221b48480e58745165de856439950d0f22590580db`
+- `qwen2.5-7b-instruct-q4_k_m-00002-of-00002.gguf`: `539cf93f78e887edea1c04e2d7d8cdaca9d01dae9c9025bcb8accbe29df3d72a`
+
+`node-llama-cpp` loads the first part and discovers the second part beside it. The Apache 2.0 model
+license is copied to `/models/MODEL-LICENSE` in the image.
 
 Required environment variables:
 
@@ -15,10 +20,11 @@ Required environment variables:
 - `JOB_ID`
 - `MODEL_PATH`
 
-Run `node apps/worker/dist/benchmark.js` inside the built image to load the bundled
-model and time one grammar-constrained extraction without Firestore.
+Draft output uses numeric quantities (`1`, `0.5`) or `null` when source text does not provide an
+amount. Units are separate lowercase measurement strings or `null`. The worker rejects malformed
+model output rather than storing it as a successful inference job.
 
-The initial cold local Docker benchmark completed the included flatbread sample in
-17.2 seconds with 8 logical CPUs and a 7 GiB container memory limit. This is not a
-Cloud Run measurement, and the 1.5B model's semantic output still requires evaluation
-against representative pasted recipes before production use.
+The deployment workflow is the only supported image build path. Never build the worker image
+locally. GitHub Actions runs `evaluate.js` against the bundled model when a worker content change
+requires a new image, checking the flatbread fixture's numeric quantity and unit extraction before
+it pushes the image.

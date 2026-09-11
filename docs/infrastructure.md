@@ -54,7 +54,7 @@ If `terraform_state_bucket_name` is changed, change the hard-coded backend bucke
 
 ## Cost controls
 
-Cloud Run services use request-based CPU allocation and `min_instance_count = 0`; no service instance is kept warm, and CPU and memory are billed only during startup, shutdown, and request handling. Each service caps at two instances. The inference worker allocates 8 vCPU and 16 GiB only during a Job execution, with one task, no retries, and a 15-minute timeout. This does not prevent charges from requests, executions, egress, or retained storage.
+Cloud Run services use request-based CPU allocation and `min_instance_count = 0`; no service instance is kept warm, and CPU and memory are billed only during startup, shutdown, and request handling. Each service caps at two instances. The inference worker allocates Cloud Run's maximum 8 vCPU and 16 GiB only during a Job execution, with one task, no retries, and a 15-minute timeout. Jobs are billed for all allocated vCPU-seconds and GiB-seconds, so increase its memory only after Cloud Run metrics show memory pressure or OOM; extra memory alone does not make CPU inference faster. This does not prevent charges from requests, executions, egress, or retained storage.
 
 The state bucket deletes archived state versions after 30 days. Container images are separated by environment: development images expire after 3 days, while the 3 most recent production API, web, and worker versions are retained for rollback. Artifact Registry cleanup is asynchronous, so transient versions can remain briefly after they meet a deletion policy.
 
@@ -74,11 +74,11 @@ curl -I https://brainlesschef.com
 
 ## Deployment
 
-The `Deploy` GitHub Actions workflow uses the Git commit SHA as its release identifier. Development reuses an existing SHA-tagged component or builds it once; production promotes the tested development images with the selected SHA, without rebuilding them, then applies Terraform with the promoted image references. The worker build verifies and bundles its pinned GGUF model and model license.
+The `Deploy` GitHub Actions workflow uses the Git commit SHA as the API and web release identifier. The worker uses a deterministic content tag derived from only the files copied into its image. Development checks Artifact Registry before building any component; an unchanged worker is reused without being pulled or rebuilt. Production promotes component manifests directly inside Artifact Registry, without rebuilding or downloading model layers to the GitHub runner. The worker build verifies both pinned GGUF model parts, bundles the model license, and runs its extraction evaluation before publishing.
 
 - A push to `main` deploys development.
 - A manual development dispatch builds the selected commit and deploys it to development.
-- A manual production dispatch requires `image_tag`: the full SHA of a development image already deployed and tested. It copies that exact artifact to the production path, unless that production release is already retained for rollback.
+- A manual production dispatch requires `image_tag`: the full SHA of a development API and web release already deployed and tested. It promotes those images and the worker content image calculated from that same source commit, unless each production artifact is already retained for rollback.
 - Configure the GitHub `production` Environment with required reviewers before production use. The workflow's environment binding then enforces approval before it receives its OIDC token.
 
 Before Terraform updates the services, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database without deploying an API revision that would reject its uninitialized migration ledger. For an initial environment, manually dispatch `Deploy` with `run_migrations` enabled; it initializes the ledger before services deploy. Do not use this pre-deployment option for a schema-changing release while an older API revision can still serve traffic.

@@ -48,13 +48,9 @@ pnpm check
 terraform fmt -check -recursive infrastructure
 ```
 
-`pnpm check` typechecks and builds both applications. The production containers build from the repository root because the pnpm lockfile is shared:
-
-```sh
-docker build --file apps/api/Dockerfile --tag brainless-chef-api:local .
-docker build --file apps/web/Dockerfile --tag brainless-chef-web:local .
-docker build --file apps/worker/Dockerfile --tag brainless-chef-worker:local .
-```
+`pnpm check` typechecks and builds both applications. Do not build deployment container images
+locally. GitHub Actions is the only supported image build path; it builds a worker image only when
+the worker's content-addressed build inputs change.
 
 ## Configuration
 
@@ -67,7 +63,7 @@ API_URL="$(terraform -chdir=infrastructure/environments/development output -raw 
 TOKEN="$(gcloud auth print-identity-token)"
 curl -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{"input":"1 cup flour. Mix with water and bake."}' \
+  -d '{"input":"Quick flatbread\n\nIngredients:\n- 1 cup flour\n- 1/2 cup water\n- 1 teaspoon salt\n\nInstructions:\n1. Mix the flour, water, and salt into a dough.\n2. Cook in a hot dry pan for 2 minutes per side."}' \
   "${API_URL}/inference-jobs"
 curl -H "Authorization: Bearer ${TOKEN}" \
   "${API_URL}/inference-jobs/<job-id>"

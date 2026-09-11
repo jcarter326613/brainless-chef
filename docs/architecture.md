@@ -51,7 +51,7 @@ The web service allows unauthenticated invocation. The API requires Cloud Run IA
 
 ## Cost posture
 
-Cloud Run services set `min_instance_count` to zero, cap at two instances, use 512 MiB of memory and one vCPU, and explicitly allocate CPU only while serving requests. The worker uses 8 vCPU and 16 GiB only for a single-task execution, has no automatic retries, and times out after 15 minutes. The trade-off is occasional cold starts and one billed execution per accepted inference request.
+Cloud Run services set `min_instance_count` to zero, cap at two instances, use 512 MiB of memory and one vCPU, and explicitly allocate CPU only while serving requests. The worker uses Cloud Run's maximum 8 vCPU and 16 GiB only for a single-task execution, has no automatic retries, and times out after 15 minutes. The 7B Q4 model and its context fit this baseline; increase memory only after Cloud Run metrics show memory pressure or OOM because additional memory does not accelerate CPU inference by itself. The trade-off is occasional cold starts and one billed execution per accepted inference request.
 
 Artifact Registry and the versioned Terraform state bucket are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention. These storage resources are not zero-cost: archived state is retained for 30 days, development images expire after 3 days, and the 3 most recent production versions of each application, including the model-bearing worker image, are retained for rollback.
 

@@ -15,7 +15,7 @@ on:
           - development
           - production
       image_tag:
-        description: Tested development image Git SHA. Required for production.
+        description: Tested development API and web image Git SHA. Required for production.
         required: false
         type: string
       run_migrations:
@@ -66,6 +66,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.image.outputs.tag }}
+      - id: worker-image
+        name: Calculate worker image tag
+        run: |
+          worker_inputs=(
+            apps/worker
+            packages
+            apps/api/package.json
+            apps/web/package.json
+            package.json
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
+            tsconfig.base.json
+          )
+          worker_content_hash="$(git ls-files -s -- "${worker_inputs[@]}" | sha256sum | cut --delimiter=' ' --fields=1)"
+          echo "tag=worker-${worker_content_hash}" >> "${GITHUB_OUTPUT}"
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -84,10 +99,10 @@ jobs:
           build_if_missing() {
             component="$1"
             dockerfile="$2"
-            image="${IMAGE_REPOSITORY}/development/${component}:${{ steps.image.outputs.tag }}"
+            image="$3"
 
-            if docker pull "${image}"; then
-              echo "Using existing SHA-tagged ${component} image."
+            if gcloud artifacts docker images describe "${image}" --format='value(image_summary.digest)' >/dev/null 2>&1; then
+              echo "Using existing content-addressed ${component} image."
               return
             fi
 
@@ -95,30 +110,29 @@ jobs:
             docker push "${image}"
           }
 
-          build_if_missing api apps/api/Dockerfile
-          build_if_missing web apps/web/Dockerfile
-          build_if_missing worker apps/worker/Dockerfile
+          build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
+          build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
+          build_if_missing worker apps/worker/Dockerfile "${IMAGE_REPOSITORY}/development/worker:${{ steps.worker-image.outputs.tag }}"
       - name: Promote tested development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'production'
         run: |
           promote_if_missing() {
             component="$1"
-            production_image="${IMAGE_REPOSITORY}/production/${component}:${{ steps.image.outputs.tag }}"
+            tag="$2"
+            production_image="${IMAGE_REPOSITORY}/production/${component}:${tag}"
 
-            if docker pull "${production_image}"; then
+            if gcloud artifacts docker images describe "${production_image}" --format='value(image_summary.digest)' >/dev/null 2>&1; then
               echo "Using retained production ${component} image."
               return
             fi
 
-            development_image="${IMAGE_REPOSITORY}/development/${component}:${{ steps.image.outputs.tag }}"
-            docker pull "${development_image}"
-            docker tag "${development_image}" "${production_image}"
-            docker push "${production_image}"
+            development_image="${IMAGE_REPOSITORY}/development/${component}:${tag}"
+            docker buildx imagetools create --prefer-index=false --tag "${production_image}" "${development_image}"
           }
 
-          promote_if_missing api
-          promote_if_missing web
-          promote_if_missing worker
+          promote_if_missing api "${{ steps.image.outputs.tag }}"
+          promote_if_missing web "${{ steps.image.outputs.tag }}"
+          promote_if_missing worker "${{ steps.worker-image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
@@ -166,4 +180,4 @@ jobs:
           terraform apply -input=false -auto-approve \
             -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}" \
             -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
-            -var="worker_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/worker:${{ steps.image.outputs.tag }}"
+            -var="worker_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/worker:${{ steps.worker-image.outputs.tag }}"
