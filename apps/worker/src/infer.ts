@@ -55,20 +55,29 @@ Rules:
 - unit is a lowercase measurement name only, never part of quantity. Use null for both quantity and unit when an ingredient has no stated amount.
 - Use the recipe heading as title. When there is no heading, use "Untitled recipe".
 - Each instruction is plain imperative text with no labels or prefixes such as "description:" or "step 1:".
+- Don't include water as an ingredient but if a quantity is present in the ingredients but not in the instructions, add the quantity to the instruction text.
 
 Example source:
 Quick flatbread
-Ingredients: 1 cup flour, 1/2 cup water, 1 teaspoon salt.
-Instructions: Mix the flour, water, and salt. Cook in a dry pan for 2 minutes per side.
+Ingredients: 1 cup flour, 1/2 teaspoon salt.
+Instructions: Mix the flour, 1/2 cup water, and salt. Cook in a dry pan for 2 minutes per side.
 
 Example output:
-{"title":"Quick flatbread","ingredients":[{"name":"flour","quantity":1,"unit":"cup"},{"name":"water","quantity":0.5,"unit":"cup"},{"name":"salt","quantity":1,"unit":"teaspoon"}],"instructions":["Mix the flour, water, and salt.","Cook in a dry pan for 2 minutes per side."]}
+{"title":"Quick flatbread","ingredients":[{"name":"flour","quantity":1,"unit":"cup"},{"name":"salt","quantity":0.5,"unit":"teaspoon"}],"instructions":["Mix the flour, 1/2 cup water, and salt.","Cook in a dry pan for 2 minutes per side."]}
 
 Example source:
-Ingredients: water as needed. Instructions: Add water slowly.
+Ingredients: salt as needed. Instructions: Add salt slowly.
 
 Example output:
-{"title":"Untitled recipe","ingredients":[{"name":"water","quantity":null,"unit":null}],"instructions":["Add water slowly."]}`;
+{"title":"Untitled recipe","ingredients":[{"name":"salt","quantity":null,"unit":null}],"instructions":["Add salt slowly."]}
+
+Example source:
+Boiled water
+Ingredients: 1 cup water. 
+Instructions: Add water to the pot.  Cook on high.
+
+Example output:
+{"title":"Boiled water","ingredients":[],"instructions":["Add 1 cup water to the pot.", "Cook on high."]}`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

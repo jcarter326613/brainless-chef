@@ -9,11 +9,10 @@ const input = `Quick flatbread
 
 Ingredients:
 - 1 cup flour
-- 1/2 cup water
 - 1 teaspoon salt
 
 Instructions:
-1. Mix the flour, water, and salt into a dough.
+1. Mix the flour, 1/2 cup water, and salt into a dough.
 2. Knead for 3 minutes.
 3. Roll the dough thin.
 4. Cook in a hot dry pan for 2 minutes per side.`;
