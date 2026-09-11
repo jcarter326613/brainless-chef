@@ -1,0 +1,19 @@
+name: Evaluate Worker
+
+on:
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - apps/worker/**
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and evaluate worker image
+        run: docker build --file apps/worker/Dockerfile .

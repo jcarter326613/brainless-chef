@@ -24,7 +24,7 @@ Draft output uses numeric quantities (`1`, `0.5`) or `null` when source text doe
 amount. Units are separate lowercase measurement strings or `null`. The worker rejects malformed
 model output rather than storing it as a successful inference job.
 
-The deployment workflow is the only supported image build path. Never build the worker image
-locally. GitHub Actions runs `evaluate.js` against the bundled model when a worker content change
-requires a new image, checking the flatbread fixture's numeric quantity and unit extraction before
-it pushes the image.
+Never build the worker image locally. GitHub Actions builds and evaluates it against the bundled
+model on feature-branch pushes that change worker image inputs. The deployment workflow performs
+the same evaluation when it builds a new worker image for `main`, checking the flatbread fixture's
+numeric quantity and unit extraction before it pushes the image.
