@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRecipeDraft } from "../src/infer.js";
+import { parseRecipeDraft, removeWaterIngredients } from "../src/infer.js";
 
 const validDraft = JSON.stringify({
   title: "Quick flatbread",
@@ -19,6 +19,33 @@ describe("parseRecipeDraft", () => {
       ingredients: [
         { name: "flour", quantity: 1, unit: "cup" },
         { name: "water", quantity: 0.5, unit: "cup" },
+        { name: "oil", quantity: null, unit: null },
+      ],
+      instructions: ["Mix the flour and water.", "Cook in a dry pan."],
+    });
+  });
+
+  it("allows a recipe with no ingredients", () => {
+    expect(
+      parseRecipeDraft(
+        JSON.stringify({
+          title: "Boiled water",
+          ingredients: [],
+          instructions: ["Add 1 cup water to the pot."],
+        }),
+      ),
+    ).toEqual({
+      title: "Boiled water",
+      ingredients: [],
+      instructions: ["Add 1 cup water to the pot."],
+    });
+  });
+
+  it("removes water without changing other ingredients", () => {
+    expect(removeWaterIngredients(parseRecipeDraft(validDraft))).toEqual({
+      title: "Quick flatbread",
+      ingredients: [
+        { name: "flour", quantity: 1, unit: "cup" },
         { name: "oil", quantity: null, unit: null },
       ],
       instructions: ["Mix the flour and water.", "Cook in a dry pan."],

@@ -15,7 +15,7 @@ interface EvaluationCase {
 
 const evaluationCases: EvaluationCase[] = [
   {
-    name: "moves a water measurement from ingredients to instructions",
+    name: "adds a water measurement from ingredients to instructions",
     input: `Quick flatbread
 
 Ingredients:
