@@ -24,6 +24,7 @@ export const recipeDraftJsonSchema = {
     title: { type: "string", minLength: 1, maxLength: 200 },
     ingredients: {
       type: "array",
+      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -59,7 +60,6 @@ Rules:
 - unit is a lowercase measurement name only, never part of quantity. Use null for both quantity and unit when an ingredient has no stated amount.
 - Use the recipe heading as title. When there is no heading, use "Untitled recipe".
 - Each instruction is plain imperative text with no labels or prefixes such as "description:" or "step 1:".
-- Extract water as an ingredient like any other ingredient. If water has a quantity in the ingredients but an instruction mentions water without that quantity, add the quantity and unit to the instruction text.
 
 Example source:
 Quick flatbread
@@ -67,21 +67,14 @@ Ingredients: 1 cup flour, 1/2 cup water, 1/2 teaspoon salt.
 Instructions: Mix the flour, water, and salt. Cook in a dry pan for 2 minutes per side.
 
 Example output:
-{"title":"Quick flatbread","ingredients":[{"name":"flour","quantity":1,"unit":"cup"},{"name":"water","quantity":0.5,"unit":"cup"},{"name":"salt","quantity":0.5,"unit":"teaspoon"}],"instructions":["Mix the flour, 1/2 cup water, and salt.","Cook in a dry pan for 2 minutes per side."]}
+{"title":"Quick flatbread","ingredients":[{"name":"flour","quantity":1,"unit":"cup"},{"name":"water","quantity":0.5,"unit":"cup"},{"name":"salt","quantity":0.5,"unit":"teaspoon"}],"instructions":["Mix the flour, water, and salt.","Cook in a dry pan for 2 minutes per side."]}
 
 Example source:
 Ingredients: salt as needed. Instructions: Add salt slowly.
 
 Example output:
 {"title":"Untitled recipe","ingredients":[{"name":"salt","quantity":null,"unit":null}],"instructions":["Add salt slowly."]}
-
-Example source:
-Boiled water
-Ingredients: 1 cup water. 
-Instructions: Add water to the pot.  Cook on high.
-
-Example output:
-{"title":"Boiled water","ingredients":[{"name":"water","quantity":1,"unit":"cup"}],"instructions":["Add 1 cup water to the pot.", "Cook on high."]}`;
+`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -110,8 +103,8 @@ export function parseRecipeDraft(output: string): RecipeDraft {
     throw new Error("The model returned an invalid recipe object.");
   }
 
-  if (!Array.isArray(parsed.ingredients)) {
-    throw new Error("The model returned invalid ingredients.");
+  if (!Array.isArray(parsed.ingredients) || parsed.ingredients.length === 0) {
+    throw new Error("The model returned no ingredients.");
   }
   if (!Array.isArray(parsed.instructions) || parsed.instructions.length === 0) {
     throw new Error("The model returned no instructions.");
@@ -160,11 +153,6 @@ export function parseRecipeDraft(output: string): RecipeDraft {
   };
 }
 
-export const removeWaterIngredients = (draft: RecipeDraft): RecipeDraft => ({
-  ...draft,
-  ingredients: draft.ingredients.filter((ingredient) => ingredient.name.toLowerCase() !== "water"),
-});
-
 export async function createRecipeInferer(modelPath: string): Promise<RecipeInferer> {
   const llama = await getLlama({ build: "never", gpu: false, skipDownload: true });
   const model = await llama.loadModel({ modelPath });
@@ -186,7 +174,7 @@ export async function createRecipeInferer(modelPath: string): Promise<RecipeInfe
         const output = await session.prompt(input, { grammar, maxTokens: 1_024, temperature: 0 });
 
         grammar.parse(output);
-        return JSON.stringify(removeWaterIngredients(parseRecipeDraft(output)));
+        return JSON.stringify(parseRecipeDraft(output));
       } finally {
         await context.dispose();
       }

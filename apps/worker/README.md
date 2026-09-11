@@ -21,9 +21,8 @@ Required environment variables:
 - `MODEL_PATH`
 
 Draft output uses numeric quantities (`1`, `0.5`) or `null` when source text does not provide an
-amount. Units are separate lowercase measurement strings or `null`. Water is removed from the
-stored ingredient list after model extraction; a water-only recipe therefore has no ingredients.
-The worker rejects malformed model output rather than storing it as a successful inference job.
+amount. Units are separate lowercase measurement strings or `null`. The worker rejects malformed
+model output rather than storing it as a successful inference job.
 
 Never build the worker image locally. GitHub Actions builds and evaluates it against the bundled
 model on feature-branch pushes that change worker image inputs. The deployment workflow performs
@@ -31,5 +30,4 @@ the same evaluation when it builds a new worker image for `main`, checking the f
 numeric quantity and unit extraction before it pushes the image.
 
 Add model evaluation scenarios as entries in `src/evaluate.ts`'s `evaluationCases` array. Each
-case defines its source recipe, expected retained ingredients, instruction count, and required
-instruction patterns.
+case defines its source recipe, expected ingredients, and instruction count.
