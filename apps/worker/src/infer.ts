@@ -12,6 +12,11 @@ export interface RecipeDraft {
   instructions: string[];
 }
 
+export interface RecipeInferer {
+  infer(input: string): Promise<string>;
+  dispose(): Promise<void>;
+}
+
 export const recipeDraftJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -156,22 +161,41 @@ export function parseRecipeDraft(output: string): RecipeDraft {
   };
 }
 
-export async function inferRecipe(input: string, modelPath: string): Promise<string> {
+export async function createRecipeInferer(modelPath: string): Promise<RecipeInferer> {
   const llama = await getLlama({ build: "never", gpu: false, skipDownload: true });
   const model = await llama.loadModel({ modelPath });
-  const inputTokens = model.tokenize(input);
-  if (inputTokens.length > MAX_INPUT_TOKENS) {
-    throw new Error("Recipe input exceeds the model token budget.");
-  }
-
-  const context = await model.createContext({ contextSize: 10_240 });
-  const session = new LlamaChatSession({
-    contextSequence: context.getSequence(),
-    systemPrompt: recipeExtractionPrompt,
-  });
   const grammar = await llama.createGrammarForJsonSchema(recipeDraftJsonSchema);
-  const output = await session.prompt(input, { grammar, maxTokens: 1_024, temperature: 0 });
 
-  grammar.parse(output);
-  return JSON.stringify(parseRecipeDraft(output));
+  return {
+    async infer(input) {
+      const inputTokens = model.tokenize(input);
+      if (inputTokens.length > MAX_INPUT_TOKENS) {
+        throw new Error("Recipe input exceeds the model token budget.");
+      }
+
+      const context = await model.createContext({ contextSize: 10_240 });
+      try {
+        const session = new LlamaChatSession({
+          contextSequence: context.getSequence(),
+          systemPrompt: recipeExtractionPrompt,
+        });
+        const output = await session.prompt(input, { grammar, maxTokens: 1_024, temperature: 0 });
+
+        grammar.parse(output);
+        return JSON.stringify(parseRecipeDraft(output));
+      } finally {
+        await context.dispose();
+      }
+    },
+    dispose: () => model.dispose(),
+  };
+}
+
+export async function inferRecipe(input: string, modelPath: string): Promise<string> {
+  const inferer = await createRecipeInferer(modelPath);
+  try {
+    return await inferer.infer(input);
+  } finally {
+    await inferer.dispose();
+  }
 }

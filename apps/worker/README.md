@@ -28,3 +28,7 @@ Never build the worker image locally. GitHub Actions builds and evaluates it aga
 model on feature-branch pushes that change worker image inputs. The deployment workflow performs
 the same evaluation when it builds a new worker image for `main`, checking the flatbread fixture's
 numeric quantity and unit extraction before it pushes the image.
+
+Add model evaluation scenarios as entries in `src/evaluate.ts`'s `evaluationCases` array. Each
+case defines its source recipe, expected retained ingredients, instruction count, and required
+instruction patterns.
