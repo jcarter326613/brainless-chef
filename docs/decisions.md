@@ -14,9 +14,9 @@
 
 ## ADR-003: GCS remote Terraform state
 
-**Decision:** Use a versioned, non-public regional GCS bucket for environment Terraform state.
+**Decision:** Store every Terraform stack's state in a versioned, non-public regional GCS bucket. Local Terraform state is prohibited, including for the bootstrap stack.
 
-**Rationale:** Remote state supports CI deployment and recovery from an accidental state change. Versioning is low-cost protection against state corruption. Bootstrap state remains local because it creates the bucket needed by remote backends.
+**Rationale:** Remote state supports shared deployment, locking, and recovery from an accidental state change. Versioning is low-cost protection against state corruption. Because Terraform cannot create the bucket that contains its state before backend initialization, a trusted administrator creates that one prerequisite with Google Cloud CLI and imports it into the bootstrap's remote state.
 
 ## ADR-004: GitHub OIDC federation
 
@@ -26,7 +26,7 @@
 
 ## ADR-005: Public initial services
 
-**Decision:** Make the initial web and API Cloud Run services publicly invokable.
+**Decision:** Make the initial web and API Cloud Run services publicly invokable. Superseded for the API by ADR-009.
 
 **Rationale:** The site needs a public entry point and the placeholder API has no protected behavior. This decision must be revisited before the API handles personal data, authenticated users, mutations, payment details, or other sensitive operations.
 
@@ -47,3 +47,9 @@
 **Decision:** Define application Zod schemas and optional storage migrations in `packages/database`, then configure the connection-owning [`firestore-database`](https://github.com/jcarter326613/firestore-database) facade. The facade strips fields outside the running schema on reads. Application releases retain old fields and make new fields optional while versions overlap; release engineers own that compatibility contract. Hidden per-document migration versions reference ordered migration IDs in the Firestore ledger. Run storage migrations in a dedicated Cloud Run Job; each source-document transaction can read related documents, generate Firestore IDs, write related documents, and advance that source document's migration version.
 
 **Rationale:** Firestore has no DDL schema, migration table, or collection-wide lock. A durable ledger records ordered storage changes and a fenced lease prevents concurrent runners. Per-document transactions make large changes restartable while allowing unrelated production work to continue. The application owns release compatibility by retaining old fields and keeping new fields optional during an overlap. Dedicated jobs avoid API startup timeouts. Release engineers remain responsible for preserving old query fields until an explicit storage migration completes.
+
+## ADR-009: Private API and CPU inference Job
+
+**Decision:** Keep the web service public, require Cloud Run IAM authentication for the API, and execute recipe inference in a non-public CPU Cloud Run Job. The API persists a strict Firestore job document before starting one worker execution with only the document ID as an override. The first benchmark image bundles the Apache-2.0 Qwen2.5 1.5B Instruct Q4_K_M GGUF and uses a dedicated Firestore identity.
+
+**Rationale:** Starting inference is a data-changing, billed operation, so a public API is no longer acceptable. A Cloud Run Job provides scale-to-zero CPU without relying on request lifetime or detached API work. The Firestore record makes results observable and permits transactional claiming, while a dedicated queue, batching, leases, and retries remain unnecessary for the first benchmark.

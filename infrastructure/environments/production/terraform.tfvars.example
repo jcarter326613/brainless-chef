@@ -2,3 +2,5 @@
 # CI always supplies immutable image tags based on the committing SHA.
 # api_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:<tag>"
 # web_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:<tag>"
+# worker_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/worker:<tag>"
+# api_invoker_members = ["group:operators@example.com"]

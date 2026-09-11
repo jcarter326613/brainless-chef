@@ -1,10 +1,12 @@
-import express from "express";
+import { database } from "@brainless-chef/database";
 
-const app = express();
+import { createApp } from "./app.js";
+import { createWorkerDispatcher } from "./worker-dispatch.js";
+
 const port = Number(process.env.PORT ?? 8080);
-
-app.get("/health", (_request, response) => {
-  response.status(200).json({ status: "ok" });
+const app = createApp({
+  dispatchWorker: createWorkerDispatcher(process.env.WORKER_JOB_NAME),
+  inferenceJobs: database.collections.inferenceJobs,
 });
 
 app.listen(port, "0.0.0.0", () => {

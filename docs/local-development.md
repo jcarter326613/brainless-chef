@@ -21,7 +21,7 @@ This starts the Express API at `http://localhost:8080` and Vite at `http://local
 curl http://localhost:8080/health
 ```
 
-The API now verifies the Firestore migration ledger before listening. Configure Application Default Credentials and select the development database before running the API:
+The API initializes its typed Firestore facade before listening. Configure Application Default Credentials, select the development database, and apply pending migrations before running the API:
 
 ```sh
 gcloud auth application-default login
@@ -53,8 +53,22 @@ terraform fmt -check -recursive infrastructure
 ```sh
 docker build --file apps/api/Dockerfile --tag brainless-chef-api:local .
 docker build --file apps/web/Dockerfile --tag brainless-chef-web:local .
+docker build --file apps/worker/Dockerfile --tag brainless-chef-worker:local .
 ```
 
 ## Configuration
 
-Cloud Run supplies the API's `PORT` and `FIRESTORE_DATABASE_ID`; local development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+Cloud Run supplies the API's `PORT`, `FIRESTORE_DATABASE_ID`, and `WORKER_JOB_NAME`. It supplies the worker's `FIRESTORE_DATABASE_ID` and per-execution `JOB_ID`; the worker image sets `MODEL_PATH`. Local API development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+
+The deployed API requires Cloud Run IAM authentication. A caller granted `roles/run.invoker` can create and poll a job with:
+
+```sh
+API_URL="$(terraform -chdir=infrastructure/environments/development output -raw api_url)"
+TOKEN="$(gcloud auth print-identity-token)"
+curl -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":"1 cup flour. Mix with water and bake."}' \
+  "${API_URL}/inference-jobs"
+curl -H "Authorization: Bearer ${TOKEN}" \
+  "${API_URL}/inference-jobs/<job-id>"
+```

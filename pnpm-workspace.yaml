@@ -5,4 +5,5 @@ packages:
 allowBuilds:
   '@firebase/util': true
   esbuild: true
+  node-llama-cpp: true
   protobufjs: true

@@ -1,5 +1,7 @@
 export { database } from "./database.js";
 export {
+  inferenceJobSchema,
+  inferenceJobStatusSchema,
   ingredientSchema,
   recipeIngredientSchema,
   recipeInstructionSchema,
@@ -8,6 +10,8 @@ export {
 } from "./schemas.js";
 export type {
   Ingredient,
+  InferenceJob,
+  InferenceJobStatus,
   Recipe,
   RecipeIngredient,
   RecipeInstruction,

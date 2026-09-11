@@ -1,6 +1,6 @@
 # Brainless Chef
 
-Brainless Chef is a TypeScript monorepo containing a React web application, an Express API, and Terraform for Google Cloud deployment.
+Brainless Chef is a TypeScript monorepo containing a React web application, an Express API, a CPU recipe-inference worker, and Terraform for Google Cloud deployment.
 
 ## Prerequisites
 
@@ -29,6 +29,7 @@ pnpm check
 ## Repository layout
 
 - `apps/api`: Express API deployed to Cloud Run.
+- `apps/worker`: CPU recipe-inference Cloud Run Job with an immutable local GGUF model.
 - `apps/web`: React/Vite web application deployed to Cloud Run.
 - `packages/database`: Server-only Zod schemas, validated repositories, and application migrations built on [`firestore-database`](https://github.com/jcarter326613/firestore-database).
 - `docs`: architecture, operational guidance, and recorded decisions.

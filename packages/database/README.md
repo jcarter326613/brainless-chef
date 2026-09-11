@@ -63,6 +63,9 @@ const namedExamples = await database.collections.examples.query({
 
 ## Stored Documents
 
+- `inferenceJobs` documents contain pasted recipe text, a blank or completed raw
+  model output, status, process-clock timestamps, and a sanitized failure message
+  when applicable. The worker claims queued jobs transactionally before inference.
 - `ingredients` documents contain a non-empty `name`.
 - `unitTypes` documents contain a non-empty `name`. Unit conversions are not
   modeled yet.
