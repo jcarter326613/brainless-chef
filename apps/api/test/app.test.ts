@@ -7,7 +7,6 @@ import { createApp, type InferenceJobCollection } from "../src/app.js";
 const queuedJob: InferenceJob = {
   createdAtMs: 1_000,
   input: "1 cup flour. Mix and bake.",
-  output: "",
   status: "queued",
   updatedAtMs: 1_000,
 };

@@ -66,7 +66,6 @@ export function createApp({
     const job = await inferenceJobs.create({
       createdAtMs: timestamp,
       input: parsed.data.input,
-      output: "",
       status: "queued",
       updatedAtMs: timestamp,
     });

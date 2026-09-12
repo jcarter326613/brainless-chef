@@ -20,14 +20,16 @@ Required environment variables:
 - `JOB_ID`
 - `MODEL_PATH`
 
-Draft output uses numeric quantities (`1`, `0.5`) or `null` when source text does not provide an
-amount. Units are separate lowercase measurement strings or `null`. The worker rejects malformed
-model output rather than storing it as a successful inference job.
+The worker converts pasted recipes through three constrained model stages: grounded fact extraction,
+catalog ingredient resolution, and prep/cook material-flow planning. Deterministic code assigns IDs,
+derives graph dependencies, computes exact ingredient fractions, validates the recipe schema, and
+writes the recipe and catalog ingredients atomically before marking the inference job successful.
+The completed job exposes `recipeId`; raw model output is not persisted.
 
 Never build the worker image locally. GitHub Actions builds and evaluates it against the bundled
 model on feature-branch pushes that change worker image inputs. The deployment workflow performs
 the same evaluation when it builds a new worker image for `main`, checking the flatbread fixture's
-numeric quantity and unit extraction before it pushes the image.
+catalog ingredients and material graph before it pushes the image.
 
 Add model evaluation scenarios as entries in `src/evaluate.ts`'s `evaluationCases` array. Each
-case defines its source recipe, expected ingredients, and instruction count.
+case defines source text, expected catalog ingredients, and minimum graph characteristics.

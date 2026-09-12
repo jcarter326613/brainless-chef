@@ -21,7 +21,7 @@ Authenticated caller
   -> private Cloud Run API service
   -> Firestore inferenceJobs document
   -> Cloud Run worker Job execution (JOB_ID override)
-  -> Firestore inferenceJobs result
+  -> Firestore recipes document and inferenceJobs.recipeId
 ```
 
 The release API image can run as a dedicated Cloud Run migration job. The job compares the explicit storage-migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations one document at a time. Document transactions allow unrelated production work to continue while protecting each migrated source document from conflicting writes.

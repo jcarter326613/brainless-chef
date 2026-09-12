@@ -13,7 +13,7 @@ export const inferenceJobSchema = z
     error: z.string().trim().min(1).max(1_000).optional(),
     finishedAtMs: z.number().int().nonnegative().optional(),
     input: z.string().trim().min(1).max(20_000),
-    output: z.string().max(500_000),
+    recipeId: z.string().trim().min(1).optional(),
     startedAtMs: z.number().int().nonnegative().optional(),
     status: inferenceJobStatusSchema,
     updatedAtMs: z.number().int().nonnegative(),
@@ -77,7 +77,7 @@ export const inferenceJobSchema = z
     };
 
     if (job.status === "queued") {
-      if (job.output !== "") invalidState("Queued jobs cannot have output.", "output");
+      if (job.recipeId !== undefined) invalidState("Queued jobs cannot have a recipe ID.", "recipeId");
       if (job.startedAtMs !== undefined)
         invalidState("Queued jobs cannot have a started time.", "startedAtMs");
       if (job.finishedAtMs !== undefined)
@@ -86,7 +86,7 @@ export const inferenceJobSchema = z
     }
 
     if (job.status === "running") {
-      if (job.output !== "") invalidState("Running jobs cannot have output.", "output");
+      if (job.recipeId !== undefined) invalidState("Running jobs cannot have a recipe ID.", "recipeId");
       if (job.startedAtMs === undefined)
         invalidState("Running jobs require a started time.", "startedAtMs");
       if (job.finishedAtMs !== undefined)
@@ -95,7 +95,7 @@ export const inferenceJobSchema = z
     }
 
     if (job.status === "succeeded") {
-      if (job.output.trim() === "") invalidState("Succeeded jobs require output.", "output");
+      if (job.recipeId === undefined) invalidState("Succeeded jobs require a recipe ID.", "recipeId");
       if (job.startedAtMs === undefined)
         invalidState("Succeeded jobs require a started time.", "startedAtMs");
       if (job.finishedAtMs === undefined)
@@ -104,7 +104,7 @@ export const inferenceJobSchema = z
     }
 
     if (job.status === "failed") {
-      if (job.output !== "") invalidState("Failed jobs cannot have output.", "output");
+      if (job.recipeId !== undefined) invalidState("Failed jobs cannot have a recipe ID.", "recipeId");
       if (job.finishedAtMs === undefined)
         invalidState("Failed jobs require a finished time.", "finishedAtMs");
       if (job.error === undefined) invalidState("Failed jobs require an error.", "error");

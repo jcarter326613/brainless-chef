@@ -5,7 +5,6 @@ import { inferenceJobSchema } from "../../../src/schemas/index.js";
 const queuedInferenceJob = {
   createdAtMs: 1_000,
   input: "A pasted bread recipe",
-  output: "",
   status: "queued" as const,
   updatedAtMs: 1_000,
 };
@@ -25,7 +24,7 @@ describe("inferenceJobSchema", () => {
       inferenceJobSchema.parse({
         ...queuedInferenceJob,
         finishedAtMs: 1_200,
-        output: "Extracted recipe",
+        recipeId: "recipe-1",
         startedAtMs: 1_100,
         status: "succeeded",
         updatedAtMs: 1_200,
@@ -44,13 +43,12 @@ describe("inferenceJobSchema", () => {
   });
 
   it.each([
-    [{ ...queuedInferenceJob, output: "too early" }],
+    [{ ...queuedInferenceJob, recipeId: "recipe-1" }],
     [{ ...queuedInferenceJob, startedAtMs: 1_100, status: "running" }],
     [
       {
         ...queuedInferenceJob,
         finishedAtMs: 1_200,
-        output: "",
         startedAtMs: 1_100,
         status: "succeeded",
         updatedAtMs: 1_200,
@@ -60,6 +58,7 @@ describe("inferenceJobSchema", () => {
       {
         ...queuedInferenceJob,
         finishedAtMs: 1_200,
+        recipeId: "recipe-1",
         status: "failed",
         updatedAtMs: 1_200,
       },

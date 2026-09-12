@@ -63,9 +63,10 @@ const namedExamples = await database.collections.examples.query({
 
 ## Stored Documents
 
-- `inferenceJobs` documents contain pasted recipe text, a blank or completed raw
-  model output, status, process-clock timestamps, and a sanitized failure message
-  when applicable. The worker claims queued jobs transactionally before inference.
+- `inferenceJobs` documents contain pasted recipe text, status, process-clock
+  timestamps, the persisted `recipeId` on success, and a sanitized failure
+  message when applicable. The worker claims queued jobs transactionally before
+  ingestion.
 - `ingredients` documents are a canonical ingredient catalog containing a
   non-empty `name`.
 - `recipes` documents use schema version `1.0` and contain source provenance,

@@ -1,36 +1,53 @@
-import type { InferenceJob } from "@brainless-chef/database";
+import type { Ingredient, InferenceJob, Recipe } from "@brainless-chef/database";
 
-interface StoredInferenceJob {
-  data: InferenceJob;
+import type { CatalogIngredient } from "./ingestion/resolve-ingredients.js";
+
+interface StoredDocument<Data> {
+  data: Data;
   id: string;
 }
 
 interface InferenceJobCollection {
-  get(id: string): Promise<StoredInferenceJob | undefined>;
+  get(id: string): Promise<StoredDocument<InferenceJob> | undefined>;
   update(id: string, updater: (current: InferenceJob) => InferenceJob): Promise<InferenceJob>;
 }
 
+interface IngredientCollection {
+  get(id: string): Promise<StoredDocument<Ingredient> | undefined>;
+  query(): Promise<Array<StoredDocument<Ingredient>>>;
+  set(id: string, data: Ingredient): Promise<void>;
+}
+
+interface RecipeCollection {
+  set(id: string, data: Recipe): Promise<void>;
+}
+
+interface IngestionDatabaseCollections {
+  inferenceJobs: InferenceJobCollection;
+  ingredients: IngredientCollection;
+  recipes: RecipeCollection;
+}
+
 export interface InferenceDatabase {
-  collections: {
-    inferenceJobs: InferenceJobCollection;
-  };
+  collections: IngestionDatabaseCollections;
   transaction<Result>(
-    operation: (database: {
-      collections: { inferenceJobs: InferenceJobCollection };
-    }) => Promise<Result>,
+    operation: (database: { collections: IngestionDatabaseCollections }) => Promise<Result>,
   ): Promise<Result>;
 }
 
 export interface ProcessJobDependencies {
   database: InferenceDatabase;
-  infer(input: string): Promise<string>;
+  ingest(input: string, catalog: readonly CatalogIngredient[]): Promise<{
+    newIngredients: Array<{ data: Ingredient; id: string }>;
+    recipe: Recipe;
+  }>;
   logger?: Pick<Console, "error" | "info">;
   now?: () => number;
 }
 
 export async function processJob(
   jobId: string,
-  { database, infer, logger = console, now = Date.now }: ProcessJobDependencies,
+  { database, ingest, logger = console, now = Date.now }: ProcessJobDependencies,
 ): Promise<boolean> {
   const claimed = await database.transaction(async ({ collections }) => {
     const existing = await collections.inferenceJobs.get(jobId);
@@ -59,22 +76,42 @@ export async function processJob(
   }
 
   try {
-    const output = await infer(claimed.data.input);
-    if (output.trim() === "") throw new Error("The model returned empty output.");
-
+    const catalog = await database.collections.ingredients.query();
+    const result = await ingest(claimed.data.input, catalog);
     const finishedAtMs = Math.max(now(), claimed.data.startedAtMs ?? claimed.data.createdAtMs);
-    await database.collections.inferenceJobs.update(jobId, (current) => {
-      if (current.status !== "running") {
+
+    await database.transaction(async ({ collections }) => {
+      const current = await collections.inferenceJobs.get(jobId);
+      if (!current || current.data.status !== "running") {
         throw new Error(`Inference job ${jobId} is no longer running.`);
       }
 
-      return {
-        ...current,
-        finishedAtMs,
-        output,
-        status: "succeeded",
-        updatedAtMs: finishedAtMs,
-      };
+      const newIngredients = new Map(result.newIngredients.map((ingredient) => [ingredient.id, ingredient.data]));
+      for (const ingredientId of new Set(result.recipe.ingredients.map((ingredient) => ingredient.id))) {
+        const existing = await collections.ingredients.get(ingredientId);
+        if (existing) continue;
+
+        const ingredient = newIngredients.get(ingredientId);
+        if (!ingredient) {
+          throw new Error(`Recipe references missing catalog ingredient ${ingredientId}.`);
+        }
+        await collections.ingredients.set(ingredientId, ingredient);
+      }
+
+      await collections.recipes.set(jobId, result.recipe);
+      await collections.inferenceJobs.update(jobId, (job) => {
+        if (job.status !== "running") {
+          throw new Error(`Inference job ${jobId} is no longer running.`);
+        }
+
+        return {
+          ...job,
+          finishedAtMs,
+          recipeId: jobId,
+          status: "succeeded",
+          updatedAtMs: finishedAtMs,
+        };
+      });
     });
     return true;
   } catch (error) {
@@ -86,9 +123,8 @@ export async function processJob(
 
       return {
         ...current,
-        error: "Recipe inference failed.",
+        error: "Recipe ingestion failed.",
         finishedAtMs,
-        output: "",
         status: "failed",
         updatedAtMs: finishedAtMs,
       };

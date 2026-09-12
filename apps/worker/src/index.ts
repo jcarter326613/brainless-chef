@@ -1,6 +1,7 @@
 import { database } from "@brainless-chef/database";
 
-import { inferRecipe } from "./infer.js";
+import { ingestRecipe } from "./ingestion/ingest-recipe.js";
+import { createStructuredModel } from "./ingestion/model.js";
 import { processJob } from "./process-job.js";
 
 const jobId = process.env.JOB_ID;
@@ -13,7 +14,12 @@ console.log(
   `Processing inference job ${jobId} in execution ${process.env.CLOUD_RUN_EXECUTION ?? "local"}.`,
 );
 
-await processJob(jobId, {
-  database,
-  infer: (input) => inferRecipe(input, modelPath),
-});
+const model = await createStructuredModel(modelPath);
+try {
+  await processJob(jobId, {
+    database,
+    ingest: (input, catalog) => ingestRecipe({ catalog, input, model }),
+  });
+} finally {
+  await model.dispose();
+}

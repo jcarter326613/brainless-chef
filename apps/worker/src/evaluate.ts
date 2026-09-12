@@ -1,20 +1,21 @@
 import assert from "node:assert/strict";
 
-import { createRecipeInferer, type RecipeDraft } from "./infer.js";
+import { ingestRecipe } from "./ingestion/ingest-recipe.js";
+import { createStructuredModel } from "./ingestion/model.js";
 
 const modelPath = process.env.MODEL_PATH;
 if (!modelPath) throw new Error("MODEL_PATH must be configured for evaluation.");
 
 interface EvaluationCase {
-  name: string;
+  expectedIngredientNames: string[];
   input: string;
-  expectedIngredients: RecipeDraft["ingredients"];
-  expectedInstructionCount: number;
+  minimumCookTasks: number;
+  name: string;
 }
 
 const evaluationCases: EvaluationCase[] = [
   {
-    name: "extracts a flatbread recipe",
+    name: "builds a flatbread material graph",
     input: `Quick flatbread
 
 Ingredients:
@@ -23,38 +24,33 @@ Ingredients:
 - 1 teaspoon salt
 
 Instructions:
-1. Mix the flour, 1/2 cup water, and salt into a dough.
+1. Mix the flour, water, and salt into a dough.
 2. Knead for 3 minutes.
 3. Roll the dough thin.
 4. Cook in a hot dry pan for 2 minutes per side.`,
-    expectedIngredients: [
-      { name: "flour", quantity: 1, unit: "cup" },
-      { name: "water", quantity: 0.5, unit: "cup" },
-      { name: "salt", quantity: 1, unit: "teaspoon" },
-    ],
-    expectedInstructionCount: 4,
+    expectedIngredientNames: ["flour", "water", "salt"],
+    minimumCookTasks: 1,
   },
   {
-    name: "extracts an unmeasured ingredient",
+    name: "preserves an as-needed ingredient",
     input: `Ingredients: salt as needed.
-Instructions: Add salt slowly.`,
-    expectedIngredients: [
-      { name: "salt", quantity: null, unit: null },
-    ],
-    expectedInstructionCount: 1,
+Instructions: Add salt slowly and serve.`,
+    expectedIngredientNames: ["salt"],
+    minimumCookTasks: 1,
   },
 ];
 
-const inferer = await createRecipeInferer(modelPath);
+const model = await createStructuredModel(modelPath);
 try {
   for (const evaluation of evaluationCases) {
-    const output = JSON.parse(await inferer.infer(evaluation.input)) as RecipeDraft;
+    const result = await ingestRecipe({ catalog: [], input: evaluation.input, model });
+    const ingredientNames = result.newIngredients.map((ingredient) => ingredient.data.name.toLowerCase());
 
-    console.log(JSON.stringify({ name: evaluation.name, output }));
+    console.log(JSON.stringify({ name: evaluation.name, recipe: result.recipe }));
 
-    assert.deepEqual(output.ingredients, evaluation.expectedIngredients, evaluation.name);
-    assert.equal(output.instructions.length, evaluation.expectedInstructionCount, evaluation.name);
+    assert.deepEqual(ingredientNames, evaluation.expectedIngredientNames, evaluation.name);
+    assert.ok(result.recipe.cook.tasks.length >= evaluation.minimumCookTasks, evaluation.name);
   }
 } finally {
-  await inferer.dispose();
+  await model.dispose();
 }

@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@brainless-chef/database": "workspace:*",
-    "node-llama-cpp": "^3.20.0"
+    "node-llama-cpp": "^3.20.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
