@@ -1,0 +1,23 @@
+{
+  "name": "@brainless-chef/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark": "node dist/benchmark.js",
+    "build": "tsc --project tsconfig.json",
+    "evaluate": "node dist/evaluate.js",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --project tsconfig.json"
+  },
+  "dependencies": {
+    "@brainless-chef/database": "workspace:*",
+    "node-llama-cpp": "^3.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

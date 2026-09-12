@@ -1,6 +1,9 @@
 name: Validate
 
 on:
+  push:
+    branches-ignore:
+      - main
   pull_request:
   workflow_call:
 
@@ -30,3 +33,9 @@ jobs:
         with:
           terraform_version: 1.15.8
       - run: terraform fmt -check -recursive infrastructure
+      - run: terraform -chdir=infrastructure/bootstrap init -backend=false -input=false
+      - run: terraform -chdir=infrastructure/bootstrap validate
+      - run: terraform -chdir=infrastructure/environments/development init -backend=false -input=false
+      - run: terraform -chdir=infrastructure/environments/development validate
+      - run: terraform -chdir=infrastructure/environments/production init -backend=false -input=false
+      - run: terraform -chdir=infrastructure/environments/production validate

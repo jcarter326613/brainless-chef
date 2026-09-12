@@ -2,3 +2,5 @@
 # Override image tags only for a deliberate manual deployment.
 # api_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/api:<tag>"
 # web_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/web:<tag>"
+# worker_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/worker:<tag>"
+# api_invoker_members = ["user:developer@example.com"]

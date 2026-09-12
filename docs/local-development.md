@@ -21,7 +21,7 @@ This starts the Express API at `http://localhost:8080` and Vite at `http://local
 curl http://localhost:8080/health
 ```
 
-The API now verifies the Firestore migration ledger before listening. Configure Application Default Credentials and select the development database before running the API:
+The API initializes its typed Firestore facade before listening. Configure Application Default Credentials, select the development database, and apply pending migrations before running the API:
 
 ```sh
 gcloud auth application-default login
@@ -48,13 +48,23 @@ pnpm check
 terraform fmt -check -recursive infrastructure
 ```
 
-`pnpm check` typechecks and builds both applications. The production containers build from the repository root because the pnpm lockfile is shared:
-
-```sh
-docker build --file apps/api/Dockerfile --tag brainless-chef-api:local .
-docker build --file apps/web/Dockerfile --tag brainless-chef-web:local .
-```
+`pnpm check` typechecks and builds both applications. Do not build deployment container images
+locally. GitHub Actions is the only supported image build path; it builds a worker image only when
+the worker's content-addressed build inputs change.
 
 ## Configuration
 
-Cloud Run supplies the API's `PORT` and `FIRESTORE_DATABASE_ID`; local development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+Cloud Run supplies the API's `PORT`, `FIRESTORE_DATABASE_ID`, and `WORKER_JOB_NAME`. It supplies the worker's `FIRESTORE_DATABASE_ID` and per-execution `JOB_ID`; the worker image sets `MODEL_PATH`. Local API development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+
+The deployed API requires Cloud Run IAM authentication. A caller granted `roles/run.invoker` can create and poll a job with:
+
+```sh
+API_URL="$(terraform -chdir=infrastructure/environments/development output -raw api_url)"
+TOKEN="$(gcloud auth print-identity-token)"
+curl -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"input":"Quick flatbread\n\nIngredients:\n- 1 cup flour\n- 1/2 cup water\n- 1 teaspoon salt\n\nInstructions:\n1. Mix the flour, water, and salt into a dough.\n2. Cook in a hot dry pan for 2 minutes per side."}' \
+  "${API_URL}/inference-jobs"
+curl -H "Authorization: Bearer ${TOKEN}" \
+  "${API_URL}/inference-jobs/<job-id>"
+```

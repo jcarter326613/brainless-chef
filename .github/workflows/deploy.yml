@@ -15,7 +15,7 @@ on:
           - development
           - production
       image_tag:
-        description: Tested development image Git SHA. Required for production.
+        description: Tested development API and web image Git SHA. Required for production.
         required: false
         type: string
       run_migrations:
@@ -49,6 +49,7 @@ jobs:
     env:
       DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment || 'development' }}
       REQUESTED_IMAGE_TAG: ${{ inputs.image_tag }}
+      TF_VAR_api_invoker_members: ${{ vars.API_INVOKER_MEMBERS || '[]' }}
     steps:
       - id: image
         name: Select release image
@@ -65,6 +66,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.image.outputs.tag }}
+      - id: worker-image
+        name: Calculate worker image tag
+        run: |
+          worker_inputs=(
+            apps/worker
+            packages
+            apps/api/package.json
+            apps/web/package.json
+            package.json
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
+            tsconfig.base.json
+          )
+          worker_content_hash="$(git ls-files -s -- "${worker_inputs[@]}" | sha256sum | cut --delimiter=' ' --fields=1)"
+          echo "tag=worker-${worker_content_hash}" >> "${GITHUB_OUTPUT}"
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -72,26 +88,51 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      - name: Verify worker bootstrap
+        run: |
+          gcloud iam service-accounts describe "brainless-${DEPLOYMENT_ENVIRONMENT}-worker@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project "${GCP_PROJECT_ID}" \
+            --quiet
       - name: Build and publish development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'development'
         run: |
-          docker build --file apps/api/Dockerfile --tag "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}" .
-          docker build --file apps/web/Dockerfile --tag "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}" .
-          docker push "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
-          docker push "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
+          build_if_missing() {
+            component="$1"
+            dockerfile="$2"
+            image="$3"
+
+            if gcloud artifacts docker images describe "${image}" --format='value(image_summary.digest)' >/dev/null 2>&1; then
+              echo "Using existing content-addressed ${component} image."
+              return
+            fi
+
+            docker build --file "${dockerfile}" --tag "${image}" .
+            docker push "${image}"
+          }
+
+          build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
+          build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
+          build_if_missing worker apps/worker/Dockerfile "${IMAGE_REPOSITORY}/development/worker:${{ steps.worker-image.outputs.tag }}"
       - name: Promote tested development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'production'
         run: |
-          if docker pull "${IMAGE_REPOSITORY}/production/api:${{ steps.image.outputs.tag }}" && docker pull "${IMAGE_REPOSITORY}/production/web:${{ steps.image.outputs.tag }}"; then
-            echo "Using retained production images for this release."
-          else
-            docker pull "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
-            docker pull "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
-            docker tag "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}" "${IMAGE_REPOSITORY}/production/api:${{ steps.image.outputs.tag }}"
-            docker tag "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}" "${IMAGE_REPOSITORY}/production/web:${{ steps.image.outputs.tag }}"
-            docker push "${IMAGE_REPOSITORY}/production/api:${{ steps.image.outputs.tag }}"
-            docker push "${IMAGE_REPOSITORY}/production/web:${{ steps.image.outputs.tag }}"
-          fi
+          promote_if_missing() {
+            component="$1"
+            tag="$2"
+            production_image="${IMAGE_REPOSITORY}/production/${component}:${tag}"
+
+            if gcloud artifacts docker images describe "${production_image}" --format='value(image_summary.digest)' >/dev/null 2>&1; then
+              echo "Using retained production ${component} image."
+              return
+            fi
+
+            development_image="${IMAGE_REPOSITORY}/development/${component}:${tag}"
+            docker buildx imagetools create --prefer-index=false --tag "${production_image}" "${development_image}"
+          }
+
+          promote_if_missing api "${{ steps.image.outputs.tag }}"
+          promote_if_missing web "${{ steps.image.outputs.tag }}"
+          promote_if_missing worker "${{ steps.worker-image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
@@ -138,4 +179,5 @@ jobs:
           terraform init -input=false
           terraform apply -input=false -auto-approve \
             -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}" \
-            -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}"
+            -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
+            -var="worker_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/worker:${{ steps.worker-image.outputs.tag }}"

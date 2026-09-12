@@ -26,10 +26,13 @@ describe("database", () => {
     firestoreDatabase.createFirestoreDatabase.mockReturnValue(configuredDatabase);
 
     const { database } = await loadDatabase();
-    const { ingredientSchema, recipeSchema, unitTypeSchema } = await import(
-      "../src/schemas.js",
-    );
+    const { inferenceJobSchema, ingredientSchema, recipeSchema, unitTypeSchema } =
+      await import("../src/schemas.js");
 
+    const inferenceJobs = {
+      path: "inferenceJobs",
+      schema: inferenceJobSchema,
+    };
     const ingredients = {
       path: "ingredients",
       schema: ingredientSchema,
@@ -44,13 +47,15 @@ describe("database", () => {
     };
 
     expect(database).toBe(configuredDatabase);
-    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(3);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, ingredients);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, recipes);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, unitTypes);
+    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(4);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, inferenceJobs);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, ingredients);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, recipes);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(4, unitTypes);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledTimes(1);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledWith({
       collections: {
+        inferenceJobs,
         ingredients,
         recipes,
         unitTypes,
