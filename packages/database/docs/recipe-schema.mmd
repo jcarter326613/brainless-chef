@@ -1,0 +1,53 @@
+%% Run `pnpm schema:diagram` from packages/database to regenerate the SVG.
+flowchart LR
+  subgraph Catalog[Ingredient Catalog]
+    Ingredient["Ingredient document<br/>id<br/>name"]
+  end
+
+  subgraph Recipe[Recipe Document]
+    RecipeRoot["Recipe<br/>title<br/>source<br/>yield"]
+    RecipeIngredient["Recipe ingredient<br/>id<br/>quantity<br/>notes<br/>optional"]
+    Tool["Tool<br/>id<br/>name<br/>label<br/>type"]
+
+    subgraph Prep[Prep]
+      PrepTask["Prep task<br/>id<br/>instruction<br/>action"]
+      PrepIngredientInput["Ingredient input<br/>id<br/>quantity"]
+      PrepObject["Prep object<br/>id<br/>label<br/>locationToolId"]
+    end
+
+    subgraph Cook[Cook]
+      CookTask["Cook task<br/>id<br/>instruction<br/>action<br/>duration<br/>completion"]
+      CookOutput["Cook output<br/>id<br/>label<br/>locationToolId"]
+    end
+  end
+
+  RecipeRoot -->|"ingredients[]"| RecipeIngredient
+  RecipeIngredient -->|"id"| Ingredient
+  RecipeRoot -->|"tools[]"| Tool
+  RecipeRoot -->|"prep.tasks[]"| PrepTask
+  RecipeRoot -->|"cook.tasks[]"| CookTask
+
+  PrepTask -->|"ingredient input"| PrepIngredientInput
+  PrepIngredientInput -->|"id"| RecipeIngredient
+  PrepTask -->|"output"| PrepObject
+  PrepObject -->|"prepObject input"| PrepTask
+  PrepObject -->|"prepObject input"| CookTask
+
+  CookTask -->|"output"| CookOutput
+  CookOutput -->|"cookOutput input"| CookTask
+  CookOutput -->|"finalOutputId"| RecipeRoot
+
+  Tool -->|"tools[]"| PrepTask
+  Tool -->|"tools[]"| CookTask
+  Tool -->|"locationToolId"| PrepObject
+  Tool -->|"locationToolId"| CookOutput
+
+  classDef catalog fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+  classDef recipe fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+  classDef prep fill:#fff3e0,stroke:#ef6c00,color:#e65100
+  classDef cook fill:#fce4ec,stroke:#c2185b,color:#880e4f
+
+  class Ingredient catalog
+  class RecipeRoot,RecipeIngredient,Tool recipe
+  class PrepTask,PrepIngredientInput,PrepObject prep
+  class CookTask,CookOutput cook

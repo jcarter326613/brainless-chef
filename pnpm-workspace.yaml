@@ -6,4 +6,5 @@ allowBuilds:
   '@firebase/util': true
   esbuild: true
   node-llama-cpp: true
+  puppeteer: true
   protobufjs: true

@@ -87,3 +87,9 @@ Catalog ingredient existence remains a transactional write-flow responsibility.
 See the
 [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)
 for compatible-release and migration requirements.
+
+## Schema Diagram
+
+Run `pnpm schema:diagram` from this package to regenerate
+`docs/recipe-schema.svg` from `docs/recipe-schema.mmd`. Update the diagram source
+when changing recipe schema relationships, then commit both files.

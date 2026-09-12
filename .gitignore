@@ -11,3 +11,4 @@ coverage/
 *.tfstate.*
 *.tfplan
 *.log
+packages/database/docs/recipe-schema.svg
