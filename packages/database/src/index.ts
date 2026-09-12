@@ -6,8 +6,7 @@ export {
   recipeIngredientSchema,
   recipeInstructionSchema,
   recipeSchema,
-  unitTypeSchema,
-} from "./schemas.js";
+} from "./schemas/index.js";
 export type {
   Ingredient,
   InferenceJob,
@@ -15,5 +14,4 @@ export type {
   Recipe,
   RecipeIngredient,
   RecipeInstruction,
-  UnitType,
-} from "./schemas.js";
+} from "./schemas/index.js";

@@ -67,18 +67,16 @@ const namedExamples = await database.collections.examples.query({
   model output, status, process-clock timestamps, and a sanitized failure message
   when applicable. The worker claims queued jobs transactionally before inference.
 - `ingredients` documents contain a non-empty `name`.
-- `unitTypes` documents contain a non-empty `name`. Unit conversions are not
-  modeled yet.
 - `recipes` documents contain a non-empty `title`, ingredient entries, and an
   ordered instruction list. A recipe ingredient entry stores an `id` for an
   `ingredients` document and a `quantity` with a positive, finite `value` and
-  a `unitTypeId` for a `unitTypes` document. Instructions reference recipe
-  ingredient IDs through `ingredientIds`.
+  a non-empty lowercase `unit` string. Instructions reference recipe ingredient
+  IDs through `ingredientIds`.
 
 Recipe validation requires unique ingredient IDs, rejects references outside
 the recipe, and requires every listed ingredient to be used by at least one
-instruction. It cannot verify that referenced `ingredients` or `unitTypes`
-documents exist; future write flows must make those checks transactionally.
+instruction. It cannot verify that referenced `ingredients` documents exist;
+future write flows must make those checks transactionally.
 
 See the
 [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)
