@@ -35,8 +35,8 @@ COPY apps/worker/package.json apps/worker/package.json
 COPY packages/database/package.json packages/database/package.json
 RUN pnpm install --filter @brainless-chef/worker... --prod --frozen-lockfile
 
-COPY --from=build --chown=node:node /workspace/apps/worker/dist apps/worker/dist
-COPY --from=build --chown=node:node /workspace/packages/database/dist packages/database/dist
+FROM runtime-base AS model
+
 RUN mkdir /models \
   && curl --fail --location --retry 5 \
     "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/${MODEL_REVISION}/${MODEL_FILE_PART_1}" \
@@ -50,6 +50,11 @@ RUN mkdir /models \
     "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/${MODEL_REVISION}/LICENSE" \
     --output /models/MODEL-LICENSE \
   && chown -R node:node /models
+
+FROM model AS runtime
+
+COPY --from=build --chown=node:node /workspace/apps/worker/dist apps/worker/dist
+COPY --from=build --chown=node:node /workspace/packages/database/dist packages/database/dist
 
 ENV MODEL_PATH=/models/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf
 ENV NODE_ENV=production

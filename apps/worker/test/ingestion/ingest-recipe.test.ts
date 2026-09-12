@@ -52,6 +52,7 @@ const plan = graphPlanSchema.parse({
 
 describe("ingestRecipe", () => {
   it("runs fact extraction and graph planning before deterministic compilation", async () => {
+    const stages: string[] = [];
     const model = {
       dispose: async () => {},
       generate: vi.fn(async ({ schema }) => {
@@ -61,9 +62,19 @@ describe("ingestRecipe", () => {
       }),
     };
 
-    const result = await ingestRecipe({ catalog: [], input: "Salt as needed. Serve.", model });
+    const result = await ingestRecipe({
+      catalog: [],
+      input: "Salt as needed. Serve.",
+      model,
+      observer: {
+        onStage(stage) {
+          stages.push(stage);
+        },
+      },
+    });
 
     expect(model.generate).toHaveBeenCalledTimes(2);
+    expect(stages).toEqual(["facts", "catalog-resolution", "graph-plan", "recipe"]);
     expect(result.newIngredients).toHaveLength(1);
     expect(result.recipe.cook.finalOutputId).toBe("cook-output-1");
   });
