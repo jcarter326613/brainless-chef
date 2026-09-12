@@ -66,17 +66,23 @@ const namedExamples = await database.collections.examples.query({
 - `inferenceJobs` documents contain pasted recipe text, a blank or completed raw
   model output, status, process-clock timestamps, and a sanitized failure message
   when applicable. The worker claims queued jobs transactionally before inference.
-- `ingredients` documents contain a non-empty `name`.
-- `recipes` documents contain a non-empty `title`, ingredient entries, and an
-  ordered instruction list. A recipe ingredient entry stores an `id` for an
-  `ingredients` document and a `quantity` with a positive, finite `value` and
-  a non-empty lowercase `unit` string. Instructions reference recipe ingredient
-  IDs through `ingredientIds`.
+- `ingredients` documents are a canonical ingredient catalog containing a
+  non-empty `name`.
+- `recipes` documents use schema version `1.0` and contain source provenance,
+  yield, recipe-scoped ingredient requirements that reference catalog IDs,
+  physical tool slots, prep tasks and objects, and cook tasks.
 
-Recipe validation requires unique ingredient IDs, rejects references outside
-the recipe, and requires every listed ingredient to be used by at least one
-instruction. It cannot verify that referenced `ingredients` documents exist;
-future write flows must make those checks transactionally.
+Recipe quantities distinguish exact, range, approximate, to-taste, and
+as-needed amounts. Numeric units are normalized to lowercase. Every numeric
+prep allocation is explicit and must reconcile with the recipe ingredient's
+total without inventing unit conversions.
+
+Recipe validation models material flow as two DAGs. Prep tasks may consume
+catalog ingredients or prep objects, and produce a prep object. Cook tasks may
+consume prep objects and earlier cook outputs, never raw ingredients. Every
+prep object has one producing prep task and exactly one prep or cook consumer.
+Tool references, prep-object input graphs, and output references are validated.
+Catalog ingredient existence remains a transactional write-flow responsibility.
 
 See the
 [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)
