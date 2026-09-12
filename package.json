@@ -12,6 +12,7 @@
     "dev": "corepack pnpm --parallel --stream --filter @brainless-chef/api --filter @brainless-chef/web dev",
     "dev:api": "corepack pnpm --filter @brainless-chef/api dev",
     "dev:web": "corepack pnpm --filter @brainless-chef/web dev",
+    "evaluate:recipe": "node scripts/evaluate-recipe.mjs",
     "test": "corepack pnpm -r test",
     "typecheck": "corepack pnpm --filter @brainless-chef/database build && corepack pnpm -r typecheck"
   }

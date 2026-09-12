@@ -1,6 +1,8 @@
 import { getLlama, LlamaChatSession } from "node-llama-cpp";
 import { z } from "zod";
 
+import { deriveGrammarSchema } from "./grammar-schema.js";
+
 const CONTEXT_TOKENS = 16_384;
 const REQUEST_OVERHEAD_TOKENS = 512;
 
@@ -25,7 +27,7 @@ export async function createStructuredModel(modelPath: string): Promise<Structur
         throw new Error("Recipe ingestion stage exceeds the model context budget.");
       }
 
-      const grammar = await llama.createGrammarForJsonSchema(z.toJSONSchema(schema) as never);
+      const grammar = await llama.createGrammarForJsonSchema(deriveGrammarSchema(schema) as never);
       const context = await model.createContext({ contextSize: CONTEXT_TOKENS });
       try {
         const session = new LlamaChatSession({

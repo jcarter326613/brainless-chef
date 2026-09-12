@@ -44,27 +44,23 @@ When a local model is available, run:
 
 ```sh
 FIRESTORE_DATABASE_ID=local-evaluation MODEL_PATH=/path/to/model.gguf \
-  pnpm --filter @brainless-chef/worker evaluate:recipe -- recipes/example.txt
+  pnpm --filter @brainless-chef/worker evaluate:recipe:host -- recipes/example.txt
 ```
 
 Use `-` instead of a path to read standard input and `--catalog catalog.json` to provide candidates.
 
-The production image includes the model, so it can run the same read-only tool locally without
-downloading a separate GGUF:
+The normal developer command uses the production image and downloads the pinned model automatically
+on its first run:
 
 ```sh
-docker build --file apps/worker/Dockerfile --tag brainless-chef-worker .
-docker run --rm \
-  --volume "$PWD/recipes:/recipes:ro" \
-  --env FIRESTORE_DATABASE_ID=local-evaluation \
-  brainless-chef-worker \
-  node apps/worker/dist/evaluate-recipe.js /recipes/example.txt
+pnpm evaluate:recipe -- recipes/example.txt
 ```
 
-The default container command runs the Firestore-backed worker and requires `JOB_ID`; always
-override it with `evaluate-recipe.js` for local inspection. Docker Desktop needs enough memory for
-the 7B CPU model. The model download lives in a separate Docker layer, so source-only changes reuse
-the cache after the first image build.
+Pass `--catalog catalog.json` to provide catalog candidates or `-` to read standard input. The
+wrapper mounts the requested files read-only, supplies no Cloud credentials or `JOB_ID`, and overrides
+the default Firestore-backed worker command. Docker Desktop needs enough memory for the 7B CPU model.
+The model download lives in a separate Docker layer, so source-only changes reuse the cache after the
+first image build.
 
 GitHub Actions builds and evaluates the image against the bundled model on feature-branch pushes
 that change worker or database inputs. The deployment workflow performs the same evaluation when it

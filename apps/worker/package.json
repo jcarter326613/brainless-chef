@@ -7,7 +7,7 @@
     "benchmark": "node dist/benchmark.js",
     "build": "tsc --project tsconfig.json",
     "evaluate": "node dist/evaluate.js",
-    "evaluate:recipe": "node dist/evaluate-recipe.js",
+    "evaluate:recipe:host": "node dist/evaluate-recipe.js",
     "start": "node dist/index.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --project tsconfig.json"
