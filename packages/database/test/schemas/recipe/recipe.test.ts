@@ -169,23 +169,35 @@ describe("recipeSchema", () => {
     expect(parsed.ingredients[1].quantity).toMatchObject({ unit: "tsp" });
   });
 
-  it.each([
-    [
-      "a raw ingredient cook input",
-      {
-        ...recipe,
-        cook: {
-          ...recipe.cook,
-          tasks: [
-            {
-              ...recipe.cook.tasks[0],
-              inputs: [{ id: "ingredient-onion", type: "ingredient" }],
-            },
-            ...recipe.cook.tasks.slice(1),
-          ],
-        },
+  it("accepts a recipe that cooks an ingredient directly without prep tasks", () => {
+    const directCookRecipe = recipeSchema.parse({
+      ...recipe,
+      cook: {
+        finalOutputId: "cook-output-onions",
+        tasks: [
+          {
+            ...recipe.cook.tasks[0],
+            inputs: [
+              {
+                id: "ingredient-onion",
+                quantity: { kind: "exact", unit: "each", value: 1 },
+                type: "ingredient",
+              },
+            ],
+          },
+        ],
       },
-    ],
+      ingredients: [recipe.ingredients[0]],
+      prep: { tasks: [] },
+    });
+
+    expect(directCookRecipe.prep.tasks).toEqual([]);
+    expect(directCookRecipe.cook.tasks[0].inputs).toEqual([
+      { id: "ingredient-onion", quantity: { kind: "exact", unit: "each", value: 1 }, type: "ingredient" },
+    ]);
+  });
+
+  it.each([
     [
       "a cyclic cook output graph",
       {

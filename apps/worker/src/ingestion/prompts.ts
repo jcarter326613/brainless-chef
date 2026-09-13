@@ -15,8 +15,8 @@ For every unresolved ingredient key, select a candidateId only when it identifie
 export const graphPlanPrompt = `Plan a recipe's executable material flow. Return only JSON matching the supplied schema.
 
 Rules:
-- Prep tasks consume recipe ingredients or outputs of earlier prep tasks. Each prep task produces one prep object.
-- Cook tasks consume prep objects or outputs of earlier cook tasks. They never consume raw ingredients.
+- Prep tasks are optional. Each prep task consumes recipe ingredients or outputs of earlier prep tasks and produces one prep object.
+- Cook tasks consume recipe ingredients, prep objects, or outputs of earlier cook tasks. A direct ingredient input must include its allocation.
 - Every prep object must have exactly one later prep or cook consumer. Split or linearize material flow when necessary.
 - Use ingredient allocation kind all for the whole declared amount. Use fraction only to divide an exact amount; do not perform arithmetic yourself.
 - Add the minimum physical tools and containers needed to execute the plan, even when the source does not name them.

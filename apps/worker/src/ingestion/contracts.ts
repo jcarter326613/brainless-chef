@@ -78,6 +78,14 @@ const fractionAllocationSchema = z
 
 const allocationSchema = z.discriminatedUnion("kind", [allAllocationSchema, fractionAllocationSchema]);
 
+const ingredientPlanInputSchema = z
+  .object({
+    allocation: allocationSchema,
+    ingredientKey: keySchema,
+    type: z.literal("ingredient"),
+  })
+  .strict();
+
 const toolSchema = z
   .object({
     key: keySchema,
@@ -89,13 +97,7 @@ const toolSchema = z
   .strict();
 
 const prepInputSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      allocation: allocationSchema,
-      ingredientKey: keySchema,
-      type: z.literal("ingredient"),
-    })
-    .strict(),
+  ingredientPlanInputSchema,
   z
     .object({
       prepTaskKey: keySchema,
@@ -105,6 +107,7 @@ const prepInputSchema = z.discriminatedUnion("type", [
 ]);
 
 const cookInputSchema = z.discriminatedUnion("type", [
+  ingredientPlanInputSchema,
   z
     .object({
       prepTaskKey: keySchema,

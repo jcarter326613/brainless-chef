@@ -76,6 +76,32 @@ describe("compileRecipe", () => {
     });
   });
 
+  it("allows an ingredient to be cooked directly without prep tasks", () => {
+    const directCookPlan = graphPlanSchema.parse({
+      ...plan,
+      cookTasks: [
+        {
+          ...plan.cookTasks[0],
+          inputs: [{ allocation: { kind: "all" }, ingredientKey: "flour", type: "ingredient" }],
+        },
+      ],
+      prepTasks: [],
+    });
+
+    const recipe = compileRecipe({
+      facts,
+      ingredientIds: new Map([["flour", "ingredient-flour"]]),
+      plan: directCookPlan,
+    });
+
+    expect(recipe).toMatchObject({
+      cook: {
+        tasks: [{ inputs: [{ id: "ingredient-flour", quantity: { kind: "exact", unit: "cup", value: 1 } }] }],
+      },
+      prep: { tasks: [] },
+    });
+  });
+
   it("rejects a fraction allocation for a non-exact ingredient", () => {
     const rangeFacts = recipeFactsSchema.parse({
       ...facts,

@@ -68,6 +68,19 @@ export function compileRecipe({
   };
 
   const factByKey = new Map(facts.ingredients.map((ingredient) => [ingredient.key, ingredient]));
+  const resolveIngredientInput = (input: {
+    allocation: { kind: "all" } | { denominator: number; kind: "fraction"; numerator: number };
+    ingredientKey: string;
+  }) => {
+    const ingredient = factByKey.get(input.ingredientKey);
+    const id = ingredientIds.get(input.ingredientKey);
+    if (!ingredient || !id) throw new Error(`Unknown ingredient key ${input.ingredientKey}.`);
+    return {
+      id,
+      quantity: allocationFor(ingredient.quantity, input.allocation),
+      type: "ingredient" as const,
+    };
+  };
   const finalOutputId =
     plan.finalCookTaskKey === null ? null : cookOutputIds.get(plan.finalCookTaskKey);
   if (plan.finalCookTaskKey !== null && !finalOutputId) {
@@ -89,6 +102,7 @@ export function compileRecipe({
               },
         id: cookTaskIds.get(task.key)!,
         inputs: task.inputs.map((input) => {
+          if (input.type === "ingredient") return resolveIngredientInput(input);
           if (input.type === "prepObject") {
             const id = prepObjectIds.get(input.prepTaskKey);
             if (!id) throw new Error(`Unknown prep task key ${input.prepTaskKey}.`);
@@ -125,14 +139,7 @@ export function compileRecipe({
             if (!id) throw new Error(`Unknown prep task key ${input.prepTaskKey}.`);
             return { id, type: "prepObject" as const };
           }
-          const ingredient = factByKey.get(input.ingredientKey);
-          const id = ingredientIds.get(input.ingredientKey);
-          if (!ingredient || !id) throw new Error(`Unknown ingredient key ${input.ingredientKey}.`);
-          return {
-            id,
-            quantity: allocationFor(ingredient.quantity, input.allocation),
-            type: "ingredient" as const,
-          };
+          return resolveIngredientInput(input);
         }),
         instruction: task.instruction,
         output: {

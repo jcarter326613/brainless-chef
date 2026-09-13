@@ -1,12 +1,11 @@
 import { z } from "zod";
 
 import {
-  ingredientDocumentIdSchema,
   prepObjectIdSchema,
   prepTaskIdSchema,
   toolIdSchema,
 } from "./identifiers.js";
-import { allocationQuantitySchema } from "./quantity.js";
+import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
 export const prepActionTypeSchema = z.enum([
@@ -40,14 +39,6 @@ const toolIdListSchema = z.array(toolIdSchema).refine(
   "Tool IDs must be unique.",
 );
 
-export const prepIngredientInputSchema = z
-  .object({
-    id: ingredientDocumentIdSchema,
-    quantity: allocationQuantitySchema.nullable(),
-    type: z.literal("ingredient"),
-  })
-  .strict();
-
 export const prepObjectInputSchema = z
   .object({
     id: prepObjectIdSchema,
@@ -56,7 +47,7 @@ export const prepObjectInputSchema = z
   .strict();
 
 export const prepInputSchema = z.discriminatedUnion("type", [
-  prepIngredientInputSchema,
+  ingredientInputSchema,
   prepObjectInputSchema,
 ]);
 

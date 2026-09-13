@@ -6,6 +6,7 @@ import {
   prepObjectIdSchema,
   toolIdSchema,
 } from "./identifiers.js";
+import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
 export const cookActionTypeSchema = z.enum([
@@ -57,6 +58,7 @@ export const cookOutputInputSchema = z
   .strict();
 
 export const cookInputSchema = z.discriminatedUnion("type", [
+  ingredientInputSchema,
   cookPrepObjectInputSchema,
   cookOutputInputSchema,
 ]);

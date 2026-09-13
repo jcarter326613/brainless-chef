@@ -1,4 +1,5 @@
 export { ingredientSchema } from "./recipe/ingredient.js";
+export { ingredientInputSchema } from "./recipe/ingredient-input.js";
 export {
   cookOutputIdSchema,
   cookTaskIdSchema,
@@ -31,6 +32,7 @@ export { recipeIngredientSchema, recipeSchema } from "./recipe/recipe.js";
 export { toolSchema } from "./recipe/tool.js";
 export { inferenceJobSchema, inferenceJobStatusSchema } from "./system/inference-job.js";
 export type { Ingredient } from "./recipe/ingredient.js";
+export type { IngredientInput } from "./recipe/ingredient-input.js";
 export type { CookInput, CookOutput, CookTask } from "./recipe/cook.js";
 export type { PrepInput, PrepObject, PrepTask } from "./recipe/prep.js";
 export type { AllocationQuantity, IngredientQuantity, PackageSize } from "./recipe/quantity.js";

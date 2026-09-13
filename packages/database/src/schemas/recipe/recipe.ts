@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { cookSchema } from "./cook.js";
+import type { IngredientInput } from "./ingredient-input.js";
 import { prepSchema } from "./prep.js";
 import {
   type AllocationQuantity,
@@ -224,25 +225,33 @@ export const recipeSchema = z
 
     const prepObjectUseCounts = new Map<string, number>();
     const ingredientAllocations = new Map<string, Array<AllocationQuantity | null>>();
+    const recordIngredientAllocation = (
+      input: IngredientInput,
+      section: "prep" | "cook",
+      taskIndex: number,
+      inputIndex: number,
+    ) => {
+      if (!ingredientIds.has(input.id)) {
+        addIssue(context, `${section === "prep" ? "Prep" : "Cook"} task references an ingredient not listed on the recipe.`, [
+          section,
+          "tasks",
+          taskIndex,
+          "inputs",
+          inputIndex,
+          "id",
+        ]);
+        return;
+      }
+
+      const allocations = ingredientAllocations.get(input.id) ?? [];
+      allocations.push(input.quantity);
+      ingredientAllocations.set(input.id, allocations);
+    };
 
     recipe.prep.tasks.forEach((task, taskIndex) => {
       task.inputs.forEach((input, inputIndex) => {
         if (input.type === "ingredient") {
-          if (!ingredientIds.has(input.id)) {
-            addIssue(context, "Prep task references an ingredient not listed on the recipe.", [
-              "prep",
-              "tasks",
-              taskIndex,
-              "inputs",
-              inputIndex,
-              "id",
-            ]);
-            return;
-          }
-
-          const allocations = ingredientAllocations.get(input.id) ?? [];
-          allocations.push(input.quantity);
-          ingredientAllocations.set(input.id, allocations);
+          recordIngredientAllocation(input, "prep", taskIndex, inputIndex);
           return;
         }
 
@@ -264,25 +273,6 @@ export const recipeSchema = z
     });
 
     validateTaskGraph(prepObjectDependencies, "prep", context);
-
-    recipe.ingredients.forEach((ingredient, ingredientIndex) => {
-      const allocations = ingredientAllocations.get(ingredient.id) ?? [];
-      if (allocations.length === 0) {
-        addIssue(context, "Every recipe ingredient must be used by a prep task.", [
-          "ingredients",
-          ingredientIndex,
-          "id",
-        ]);
-        return;
-      }
-      if (!allocationMatchesTotal(ingredient.quantity, allocations)) {
-        addIssue(context, "Prep ingredient allocations must reconcile with the recipe total.", [
-          "ingredients",
-          ingredientIndex,
-          "quantity",
-        ]);
-      }
-    });
 
     const cookOutputProducers = new Map<string, { taskId: string; taskIndex: number }>();
     const cookOutputDependencies: Array<{ dependencies: string[]; id: string }> = recipe.cook.tasks.map((task) => ({
@@ -308,6 +298,10 @@ export const recipeSchema = z
 
     recipe.cook.tasks.forEach((task, taskIndex) => {
       task.inputs.forEach((input, inputIndex) => {
+        if (input.type === "ingredient") {
+          recordIngredientAllocation(input, "cook", taskIndex, inputIndex);
+          return;
+        }
         if (input.type === "prepObject") {
           if (!prepObjectProducers.has(input.id)) {
             addIssue(context, "Cook task references an unknown prep object.", [
@@ -338,6 +332,25 @@ export const recipeSchema = z
         }
         cookOutputDependencies[taskIndex].dependencies.push(producer.taskId);
       });
+    });
+
+    recipe.ingredients.forEach((ingredient, ingredientIndex) => {
+      const allocations = ingredientAllocations.get(ingredient.id) ?? [];
+      if (allocations.length === 0) {
+        addIssue(context, "Every recipe ingredient must be used by a prep or cook task.", [
+          "ingredients",
+          ingredientIndex,
+          "id",
+        ]);
+        return;
+      }
+      if (!allocationMatchesTotal(ingredient.quantity, allocations)) {
+        addIssue(context, "Ingredient allocations must reconcile with the recipe total.", [
+          "ingredients",
+          ingredientIndex,
+          "quantity",
+        ]);
+      }
     });
 
     validateTaskGraph(cookOutputDependencies, "cook", context);
