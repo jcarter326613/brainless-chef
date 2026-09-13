@@ -62,10 +62,10 @@ the default Firestore-backed worker command. Docker Desktop needs enough memory 
 The model download lives in a separate Docker layer, so source-only changes reuse the cache after the
 first image build.
 
-GitHub Actions builds and evaluates the image against the bundled model on feature-branch pushes
-that change worker or database inputs. The deployment workflow performs the same evaluation when it
-builds a new worker image for `main`, checking the flatbread fixture's catalog ingredients and
-material graph before it pushes the image.
+GitHub Actions builds and evaluates the image against the bundled model on pushes that change worker
+or database inputs. Its BuildKit cache preserves the model and dependency layers between runs. The
+deployment workflow performs the same evaluation when it builds a new worker image for `main`,
+checking the flatbread fixture's catalog ingredients and material graph before it pushes the image.
 
 Add model evaluation scenarios as entries in `src/evaluate.ts`'s `evaluationCases` array. Each
 case defines source text, expected catalog ingredients, and minimum graph characteristics.

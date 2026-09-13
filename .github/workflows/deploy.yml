@@ -107,6 +107,9 @@ jobs:
             fi
 
             docker build --file "${dockerfile}" --tag "${image}" .
+            if [[ "${component}" == "worker" ]]; then
+              docker run --rm --env FIRESTORE_DATABASE_ID=worker-evaluation "${image}" node apps/worker/dist/evaluate.js
+            fi
             docker push "${image}"
           }
 

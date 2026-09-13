@@ -2,11 +2,14 @@ name: Evaluate Worker
 
 on:
   push:
-    branches-ignore:
-      - main
     paths:
+      - .github/workflows/evaluate-worker.yml
       - apps/worker/**
       - packages/database/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - tsconfig.base.json
 
 permissions:
   contents: read
@@ -16,5 +19,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and evaluate worker image
-        run: docker build --file apps/worker/Dockerfile .
+      - uses: docker/setup-buildx-action@v4
+      - name: Build worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          tags: brainless-chef-worker:evaluate
+          load: true
+          cache-from: type=gha,scope=worker-evaluation
+          cache-to: type=gha,mode=max,scope=worker-evaluation
+      - name: Evaluate worker image
+        run: >-
+          docker run --rm
+          --env FIRESTORE_DATABASE_ID=worker-evaluation
+          brainless-chef-worker:evaluate
+          node apps/worker/dist/evaluate.js

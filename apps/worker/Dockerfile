@@ -59,7 +59,5 @@ COPY --from=build --chown=node:node /workspace/packages/database/dist packages/d
 ENV MODEL_PATH=/models/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf
 ENV NODE_ENV=production
 
-RUN FIRESTORE_DATABASE_ID=worker-evaluation node apps/worker/dist/evaluate.js
-
 USER node
 CMD ["node", "apps/worker/dist/index.js"]
