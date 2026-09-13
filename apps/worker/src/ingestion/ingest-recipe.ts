@@ -21,6 +21,7 @@ export interface IngestedRecipe {
 export type IngestionStage = "facts" | "catalog-resolution" | "graph-plan" | "graph-repair" | "recipe";
 
 export interface IngestionObserver {
+  onCompilationFailure?(plan: GraphPlan, error: Error, elapsedMs: number): void;
   onStage(
     stage: IngestionStage,
     data: RecipeFacts | IngredientResolution | GraphPlan | Recipe,
@@ -57,8 +58,8 @@ export async function ingestRecipe({
   const plan = await planRecipeGraph(model, facts);
   report("graph-plan", planStartedAt, plan);
 
+  const compilationStartedAt = performance.now();
   try {
-    const compilationStartedAt = performance.now();
     const recipe = compileRecipe({ facts, ingredientIds, plan });
     report("recipe", compilationStartedAt, recipe);
     return {
@@ -67,12 +68,13 @@ export async function ingestRecipe({
     };
   } catch (error) {
     if (!(error instanceof Error)) throw error;
+    observer?.onCompilationFailure?.(plan, error, Math.round(performance.now() - compilationStartedAt));
     const repairStartedAt = performance.now();
     const repairedPlan = await repairRecipeGraph(model, facts, plan, error);
     report("graph-repair", repairStartedAt, repairedPlan);
-    const compilationStartedAt = performance.now();
+    const repairedCompilationStartedAt = performance.now();
     const recipe = compileRecipe({ facts, ingredientIds, plan: repairedPlan });
-    report("recipe", compilationStartedAt, recipe);
+    report("recipe", repairedCompilationStartedAt, recipe);
     return {
       newIngredients,
       recipe,

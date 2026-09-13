@@ -30,8 +30,27 @@ jobs:
           cache-from: type=gha,scope=worker-evaluation
           cache-to: type=gha,mode=max,scope=worker-evaluation
       - name: Evaluate worker image
-        run: >-
-          docker run --rm
-          --env FIRESTORE_DATABASE_ID=worker-evaluation
-          brainless-chef-worker:evaluate
-          node apps/worker/dist/evaluate.js
+        id: evaluate
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/worker-evaluation"
+          docker run --rm \
+            --env FIRESTORE_DATABASE_ID=worker-evaluation \
+            --env EVALUATION_TRACE_PATH=/artifacts/trace.ndjson \
+            --env EVALUATION_REPORT_PATH=/artifacts/report.json \
+            --volume "$RUNNER_TEMP/worker-evaluation:/artifacts" \
+            brainless-chef-worker:evaluate \
+            node apps/worker/dist/evaluate.js
+      - name: Summarize evaluation trace
+        if: always()
+        run: node scripts/summarize-evaluation-trace.mjs "$RUNNER_TEMP/worker-evaluation/trace.ndjson"
+      - name: Upload evaluation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-evaluation-${{ github.run_id }}
+          path: ${{ runner.temp }}/worker-evaluation
+          if-no-files-found: warn
+      - name: Fail when evaluation fails
+        if: steps.evaluate.outcome == 'failure'
+        run: exit 1

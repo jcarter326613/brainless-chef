@@ -7,6 +7,7 @@ export async function extractRecipeFacts(model: StructuredModel, input: string):
     input,
     maxOutputTokens: 2_048,
     schema: recipeFactsSchema,
+    stage: "facts",
     systemPrompt: recipeFactsPrompt,
   });
 }

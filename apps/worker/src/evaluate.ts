@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { createEvaluationTracer, writeEvaluationReport } from "./evaluation-trace.js";
 import { ingestRecipe } from "./ingestion/ingest-recipe.js";
 import { createStructuredModel } from "./ingestion/model.js";
 
@@ -40,17 +41,50 @@ Instructions: Add salt slowly and serve.`,
   },
 ];
 
-const model = await createStructuredModel(modelPath);
+const tracer = createEvaluationTracer(process.env.EVALUATION_TRACE_PATH);
+const report: Array<{ actual?: unknown; expected: Omit<EvaluationCase, "input" | "name">; name: string; status: "failed" | "passed" }> = [];
+const serializeStage = (data: unknown) =>
+  typeof data === "object" && data !== null && "ingredientIds" in data
+    ? { ...data, ingredientIds: Object.fromEntries((data as { ingredientIds: Map<string, string> }).ingredientIds) }
+    : data;
+const model = await createStructuredModel(modelPath, { onTrace: (event) => tracer.write(event) });
 try {
   for (const evaluation of evaluationCases) {
-    const result = await ingestRecipe({ catalog: [], input: evaluation.input, model });
-    const ingredientNames = result.newIngredients.map((ingredient) => ingredient.data.name.toLowerCase());
+    const expected = {
+      expectedIngredientNames: evaluation.expectedIngredientNames,
+      minimumCookTasks: evaluation.minimumCookTasks,
+    };
+    tracer.write({ data: { expected }, kind: "evaluation-case-started", stage: evaluation.name });
+    try {
+      const result = await ingestRecipe({
+        catalog: [],
+        input: evaluation.input,
+        model,
+        observer: {
+          onCompilationFailure(plan, error) {
+            tracer.write({ data: { plan }, error: { message: error.message }, kind: "compilation-failed" });
+          },
+          onStage(stage, data, elapsedMs) {
+            tracer.write({ data: serializeStage(data), elapsedMs, kind: "stage-completed", stage });
+          },
+        },
+      });
+      const ingredientNames = result.newIngredients.map((ingredient) => ingredient.data.name.toLowerCase());
+      const actual = { ingredientNames, recipe: result.recipe };
 
-    console.log(JSON.stringify({ name: evaluation.name, recipe: result.recipe }));
-
-    assert.deepEqual(ingredientNames, evaluation.expectedIngredientNames, evaluation.name);
-    assert.ok(result.recipe.cook.tasks.length >= evaluation.minimumCookTasks, evaluation.name);
+      assert.deepEqual(ingredientNames, evaluation.expectedIngredientNames, evaluation.name);
+      assert.ok(result.recipe.cook.tasks.length >= evaluation.minimumCookTasks, evaluation.name);
+      report.push({ actual, expected, name: evaluation.name, status: "passed" });
+      tracer.write({ data: { actual, expected }, kind: "evaluation-case-passed", stage: evaluation.name });
+      console.log(JSON.stringify({ name: evaluation.name, recipe: result.recipe }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      report.push({ expected, name: evaluation.name, status: "failed" });
+      tracer.write({ error: { message }, kind: "evaluation-case-failed", stage: evaluation.name });
+      throw error;
+    }
   }
 } finally {
   await model.dispose();
+  writeEvaluationReport(process.env.EVALUATION_REPORT_PATH, { cases: report });
 }

@@ -79,6 +79,7 @@ export async function resolveIngredients(
     }),
     maxOutputTokens: 1_024,
     schema: catalogResolutionSchema,
+    stage: "catalog-resolution",
     systemPrompt: catalogResolutionPrompt,
   });
   const matchesByKey = new Map(resolution.matches.map((match) => [match.ingredientKey, match.candidateId]));

@@ -4,7 +4,7 @@ import type { StructuredModel } from "./model.js";
 import { graphPlanPrompt } from "./prompts.js";
 
 export async function planRecipeGraph(model: StructuredModel, facts: RecipeFacts): Promise<GraphPlan> {
-  return generatePlan(model, JSON.stringify(facts), graphPlanPrompt);
+  return generatePlan(model, JSON.stringify(facts), graphPlanPrompt, "graph-plan");
 }
 
 export async function repairRecipeGraph(
@@ -17,6 +17,7 @@ export async function repairRecipeGraph(
     model,
     JSON.stringify({ facts, previousPlan: plan, validationError: validationError.message }),
     `${graphPlanPrompt}\n\nRepair the previous plan using the validation error. Keep valid semantics unchanged.`,
+    "graph-repair",
   );
 }
 
@@ -24,11 +25,13 @@ async function generatePlan(
   model: StructuredModel,
   input: string,
   systemPrompt: string,
+  stage: "graph-plan" | "graph-repair",
 ): Promise<GraphPlan> {
   return model.generate({
     input,
     maxOutputTokens: 4_096,
     schema: graphPlanSchema,
+    stage,
     systemPrompt,
   });
 }
