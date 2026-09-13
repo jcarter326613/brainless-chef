@@ -1,10 +1,23 @@
 import { getLlama, LlamaChatSession } from "node-llama-cpp";
 import { z } from "zod";
 
-import { deriveGrammarSchema } from "./grammar-schema.js";
-
 const CONTEXT_TOKENS = 16_384;
 const REQUEST_OVERHEAD_TOKENS = 512;
+
+function createGrammarSchema(schema: z.ZodType) {
+  const removeRepetitionConstraints = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(removeRepetitionConstraints);
+    if (value === null || typeof value !== "object") return value;
+
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !["minItems", "maxItems", "minLength", "maxLength"].includes(key))
+        .map(([key, child]) => [key, removeRepetitionConstraints(child)]),
+    );
+  };
+
+  return removeRepetitionConstraints(z.toJSONSchema(schema));
+}
 
 export interface StructuredModel {
   generate<Schema extends z.ZodType>(options: {
@@ -27,7 +40,7 @@ export async function createStructuredModel(modelPath: string): Promise<Structur
         throw new Error("Recipe ingestion stage exceeds the model context budget.");
       }
 
-      const grammar = await llama.createGrammarForJsonSchema(deriveGrammarSchema(schema) as never);
+      const grammar = await llama.createGrammarForJsonSchema(createGrammarSchema(schema) as never);
       const context = await model.createContext({ contextSize: CONTEXT_TOKENS });
       try {
         const session = new LlamaChatSession({
@@ -36,7 +49,6 @@ export async function createStructuredModel(modelPath: string): Promise<Structur
         });
         const output = await session.prompt(input, { grammar, maxTokens: maxOutputTokens, temperature: 0 });
 
-        grammar.parse(output);
         return schema.parse(JSON.parse(output));
       } catch (error) {
         if (error instanceof z.ZodError) {

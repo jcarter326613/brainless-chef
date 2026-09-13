@@ -9,6 +9,7 @@ function parseOptions(arguments_) {
 
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
+    if (argument === "--") continue;
     if (argument === "--catalog") {
       const path = arguments_[index + 1];
       if (!path || path.startsWith("-")) throw new Error("--catalog requires a JSON file path.");
