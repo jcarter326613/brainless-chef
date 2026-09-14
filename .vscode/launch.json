@@ -8,6 +8,17 @@
       "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}/apps/web",
       "preLaunchTask": "Dev: All"
+    },
+    {
+      "name": "Worker: Debug Recipe Prompt Experiment",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/apps/worker/test-integration/scripts/chatgpt-recipe-experiment.mjs",
+      "cwd": "${workspaceFolder}/apps/worker",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "preLaunchTask": "Worker: Set Up Local Model"
     }
   ]
 }

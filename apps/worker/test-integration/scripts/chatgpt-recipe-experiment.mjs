@@ -12,9 +12,88 @@ const modelPath = join(
   "qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf",
 );
 
-const prompt = `Seperate the following recipe into a collection of ingredients and directions matched to their corresponding components:
+const instructions = `
+Separate the supplied recipe into a collection of ingredients and directions.
 
-### Ingredients
+- If the ingredients or directions are separated into different components or sections, include information 
+  about the name of the component in the output object or null otherwise.  When including the name, also include 
+  whether the name is a noun, an optional noun or "other" such as a verb in the type field.  Component names
+  should not have extra punctuation such as colons.
+- Component names should not be repeated as an ingredient or direction unless they appear separately.
+- The headers "Ingredients" and "Directions", or headers similar to those, do not indicate named components.  
+  They may indicate the start of an unnamed component.
+- We do want to have the ingredients section and directions sections in separate components in the output JSON.  
+  If we are in the ingredients section, each ingredient should be supplied as a separate string in an array of 
+  ingredient strings.  Similarly, each complete direction sentence or sentences should be given in the direction 
+  array as its own string.
+- Keep the same order of the ingredients and directions as how they appeared in the recipe.
+- Don't de-duplicate repeated ingredients.
+- Strings may be split only at sentence boundaries, while their text and punctuation must otherwise remain unchanged.
+- Line numbering or bulleting should be stripped.
+- The directions should have only one sentence per array string except in the case of fragment sentences which should be combined into the same string when they are adjacent and related.
+- Each top level object in the returned structure should correspond to a single component that can be found in the ingredients or directions sections.  Ingredients and directions should not both be present in the same object.
+- Every ingredient, direction and component should be extracted.
+`
+
+const responseSchema = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      component: {
+        anyOf: [
+          { 
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              type: { enum: ["noun", "optional noun", "other"] },
+
+            },
+            required: ["name", "type"],
+            additionalProperties: false,
+          },
+          { type: "null" }
+        ]
+      },
+      ingredients: {
+        anyOf: [
+          {
+            type: "array",
+            items: { type: "string" },
+          },
+          { type: "null" },
+        ],
+      },
+      directions: {
+        anyOf: [
+          {
+            type: "array",
+            items: { type: "string" },
+          },
+          { type: "null" },
+        ],
+      },
+    },
+    required: ["component", "ingredients", "directions"],
+    additionalProperties: false,
+    oneOf: [
+      {
+        properties: {
+          ingredients: { type: "array" },
+          directions: { type: "null" },
+        },
+      },
+      {
+        properties: {
+          ingredients: { type: "null" },
+          directions: { type: "array" },
+        },
+      },
+    ],
+  },
+}
+
+const recipe = `### Ingredients
 
 - Cake:
 - 3/4 cups caster sugar (superfine sugar)
@@ -58,12 +137,14 @@ const prompt = `Seperate the following recipe into a collection of ingredients a
 const llama = await getLlama({ build: "auto", gpu: "metal", progressLogs: "stderr" });
 const model = await llama.loadModel({ modelPath });
 const context = await model.createContext({ contextSize: 16_384 });
-const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: "" });
-const requestTokens = model.tokenize(prompt).length;
+const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: instructions });
+const grammar = await llama.createGrammarForJsonSchema(responseSchema);
+const requestTokens = model.tokenize(`${instructions}\n${recipe}`).length;
 const startedAt = performance.now();
 
 try {
-  const response = await session.prompt(prompt, { maxTokens: 8_192, temperature: 0 });
+  const output = await session.prompt(recipe, { grammar, maxTokens: 8_192, temperature: 0 });
+  const response = JSON.parse(output);
   console.error(`request tokens: ${requestTokens}`);
   console.error(`completed in ${Math.round(performance.now() - startedAt)}ms`);
   console.log(response);
