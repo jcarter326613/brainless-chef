@@ -4,6 +4,7 @@ const createInstructions = () => `
 Separate the supplied recipe into a collection of ingredients and directions.
 
 - If the ingredients or directions are separated into different components or sections, include information about the name of the component in the output object or null otherwise. When including the name, also include whether the name is a noun, an optional noun or "other" such as a verb in the type field. Component names should not have extra punctuation such as colons.
+- Set component.type from the entire component name: use "noun" for a noun phrase, "optional noun" for an optional noun phrase, and "other" for non noun phrases such as action or verb phrases.
 - Component names should not be repeated as an ingredient or direction unless they appear separately.
 - "Ingredients", "Directions", "Instructions", or synomyms to those, do not indicate named components.
 - Every other named heading must be represented as the component of its own top-level object. Do not merge the content of distinct named sections.
