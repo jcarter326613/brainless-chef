@@ -1,7 +1,7 @@
 import { getLlama } from "node-llama-cpp";
 
-import { extractRecipeHeaders } from "./chatgpt-recipe-experiment-headers.mjs";
-import { groupRecipe } from "./chatgpt-recipe-experiment-groups.mjs";
+import { extractRecipeHeaders } from "../../src/step-1-extract-recipe-headers.mjs";
+import { groupRecipe } from "../../src/step-2-group-recipe.mjs";
 import { modelPath } from "./local-model-config.mjs";
 
 const recipe = `### Ingredients
@@ -48,7 +48,16 @@ const recipe = `### Ingredients
 const llama = await getLlama({ build: "auto", gpu: "metal", progressLogs: "stderr" });
 const model = await llama.loadModel({ modelPath });
 
-const headers = await extractRecipeHeaders({ llama, model, recipe });
-await groupRecipe({ llama, model, recipe, headers });
+const headerStep = await extractRecipeHeaders({ llama, model, recipe });
+console.error(`header request tokens: ${headerStep.requestTokens}`);
+console.error(`header pass completed in ${headerStep.durationMs}ms`);
+console.log(headerStep.response);
+console.log(headerStep.output);
+
+const groupStep = await groupRecipe({ llama, model, recipe, headers: headerStep.headers });
+console.error(`group request tokens: ${groupStep.requestTokens}`);
+console.error(`group pass completed in ${groupStep.durationMs}ms`);
+console.log(groupStep.groups);
+console.log(groupStep.output);
 
 console.log("end")

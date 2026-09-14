@@ -11,7 +11,7 @@ Extract the complete ordered list of component headings nested within the suppli
 - Structural labels that identify broad recipe sections, such as ingredients, directions, instructions, methods, or their synonyms, are not component headings and must not be returned.
 - Return ingredient component headings in ingredientHeaders and direction component headings in directionHeaders. Preserve source order within each list.
 - Return empty header lists when the recipe has no component headings.
-- A heading is always a noun or verb that has no context.  Noun examples include, "Sauce", "Pudding", etc.  Verb examples include, "Prepare", "Gather", etc.  These headers tell you the noun or verb but never both and they never provide any context about what to do with the noun or wheat to perform the verb on.
+- A heading is always a noun or verb that has no context. Noun examples include, "Sauce", "Pudding", etc. Verb examples include, "Prepare", "Gather", etc. These headers tell you the noun or verb but never both and they never provide any context about what to do with the noun or wheat to perform the verb on.
 
 For example, the source "### Ingredients\n- Filling:\n- 200g fruit\n### Instructions\n1. Prepare:\n2. Stir the fruit.\n3. Bake:\n4. Bake until set." produces {"analysis":"Ingredients and instructions are structural sections.","ingredientHeaders":["Filling"],"directionHeaders":["Prepare","Bake"]}.
 `;
@@ -42,14 +42,15 @@ export async function extractRecipeHeaders({ llama, model, recipe }) {
 
   try {
     const output = await session.prompt(recipe, { grammar, maxTokens: 4_096, temperature: 0 });
-    const headerResult = JSON.parse(output);
+    const response = JSON.parse(output);
 
-    console.error(`header request tokens: ${requestTokens}`);
-    console.error(`header pass completed in ${Math.round(performance.now() - startedAt)}ms`);
-    console.log(headerResult);
-    console.log(output);
-
-    return [...headerResult.ingredientHeaders, ...headerResult.directionHeaders];
+    return {
+      headers: [...response.ingredientHeaders, ...response.directionHeaders],
+      output,
+      requestTokens,
+      response,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
   } finally {
     await context.dispose();
   }
