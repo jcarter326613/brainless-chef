@@ -4,22 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "benchmark": "node dist/benchmark.js",
-    "build": "tsc --project tsconfig.json",
-    "evaluate": "node dist/evaluate.js",
-    "evaluate:recipe:host": "node dist/evaluate-recipe.js",
-    "start": "node dist/index.js",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit --project tsconfig.json"
+    "build": "node --check test-integration/scripts/chatgpt-recipe-experiment.mjs",
+    "experiment:chatgpt-recipe": "pnpm setup:local-model && node test-integration/scripts/chatgpt-recipe-experiment.mjs",
+    "setup:local-model": "node test-integration/scripts/setup-local-model.mjs",
+    "test": "node --check test-integration/scripts/setup-local-model.mjs",
+    "typecheck": "node --check test-integration/scripts/local-model-config.mjs"
   },
   "dependencies": {
-    "@brainless-chef/database": "workspace:*",
-    "node-llama-cpp": "^3.20.0",
-    "zod": "^4.1.5"
-  },
-  "devDependencies": {
-    "@types/node": "^22.15.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "node-llama-cpp": "^3.20.0"
   }
 }

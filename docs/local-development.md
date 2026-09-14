@@ -48,23 +48,16 @@ pnpm check
 terraform fmt -check -recursive infrastructure
 ```
 
-`pnpm check` typechecks and builds both applications. Do not build deployment container images
-locally. GitHub Actions is the only supported image build path; it builds a worker image only when
-the worker's content-addressed build inputs change.
+`pnpm check` typechecks and builds both deployed applications. Do not build deployment container images locally. GitHub Actions is the only supported image build path for the API and web applications.
 
 ## Configuration
 
-Cloud Run supplies the API's `PORT`, `FIRESTORE_DATABASE_ID`, and `WORKER_JOB_NAME`. It supplies the worker's `FIRESTORE_DATABASE_ID` and per-execution `JOB_ID`; the worker image sets `MODEL_PATH`. Local API development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
+Cloud Run supplies the API's `PORT` and `FIRESTORE_DATABASE_ID`. Local API development defaults only the port to `8080`. Do not commit `.env` files. Add a documented `.env.example` only when an application requires local configuration.
 
-The deployed API requires Cloud Run IAM authentication. A caller granted `roles/run.invoker` can create and poll a job with:
+The deployed API requires Cloud Run IAM authentication. A caller granted `roles/run.invoker` can call its health endpoint with:
 
 ```sh
 API_URL="$(terraform -chdir=infrastructure/environments/development output -raw api_url)"
 TOKEN="$(gcloud auth print-identity-token)"
-curl -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{"input":"Quick flatbread\n\nIngredients:\n- 1 cup flour\n- 1/2 cup water\n- 1 teaspoon salt\n\nInstructions:\n1. Mix the flour, water, and salt into a dough.\n2. Cook in a hot dry pan for 2 minutes per side."}' \
-  "${API_URL}/inference-jobs"
-curl -H "Authorization: Bearer ${TOKEN}" \
-  "${API_URL}/inference-jobs/<job-id>"
+curl -H "Authorization: Bearer ${TOKEN}" "${API_URL}/health"
 ```

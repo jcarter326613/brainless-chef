@@ -4,7 +4,6 @@ import {
 } from "firestore-database";
 
 import {
-  inferenceJobSchema,
   ingredientSchema,
   recipeSchema,
 } from "./schemas/index.js";
@@ -15,10 +14,6 @@ if (!databaseId) {
 }
 
 const collections = {
-  inferenceJobs: defineCollection({
-    path: "inferenceJobs",
-    schema: inferenceJobSchema,
-  }),
   ingredients: defineCollection({
     path: "ingredients",
     schema: ingredientSchema,

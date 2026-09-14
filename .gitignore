@@ -4,9 +4,11 @@
 !.env.example
 node_modules/
 dist/
+dist-test-integration/
 .pnpm-store/
 coverage/
 .terraform/
+.brainless-chef/
 *.tfstate
 *.tfstate.*
 *.tfplan

@@ -30,11 +30,6 @@ variable "api_invoker_members" {
   default     = []
 }
 
-variable "worker_image" {
-  type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/worker:latest"
-}
-
 variable "dns_managed_zone_name" {
   description = "Existing Cloud DNS zone that serves the production website domain."
   type        = string

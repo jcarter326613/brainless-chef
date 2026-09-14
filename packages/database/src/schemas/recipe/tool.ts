@@ -8,6 +8,7 @@ export const toolSchema = z
     id: toolIdSchema,
     label: textSchema.nullable(),
     name: textSchema,
+    size: textSchema.nullable().optional(),
     type: textSchema.toLowerCase(),
   })
   .strict();

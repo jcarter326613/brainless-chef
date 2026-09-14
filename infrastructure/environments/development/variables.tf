@@ -29,8 +29,3 @@ variable "api_invoker_members" {
   type        = list(string)
   default     = []
 }
-
-variable "worker_image" {
-  type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/worker:latest"
-}

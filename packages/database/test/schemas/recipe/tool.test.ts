@@ -9,12 +9,13 @@ describe("toolSchema", () => {
         id: "tool-bowl-a",
         label: "Bowl A",
         name: "Small prep bowl",
+        size: "2 quart",
         type: "BOWL",
       }),
-    ).toMatchObject({ id: "tool-bowl-a", type: "bowl" });
+    ).toMatchObject({ id: "tool-bowl-a", size: "2 quart", type: "bowl" });
   });
 
   it("rejects missing required tool fields", () => {
-    expect(toolSchema.safeParse({ id: "tool-bowl-a", name: "Bowl" }).success).toBe(false);
+    expect(toolSchema.safeParse({ id: "tool-bowl-a", name: "Bowl", size: null }).success).toBe(false);
   });
 });

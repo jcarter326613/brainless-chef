@@ -43,13 +43,3 @@ variable "api_invoker_members" {
   type        = list(string)
   default     = []
 }
-
-variable "worker_image" {
-  description = "Fully qualified recipe inference worker container image reference."
-  type        = string
-}
-
-variable "worker_runtime_service_account_email" {
-  description = "Pre-created worker identity with access only to this environment's database."
-  type        = string
-}

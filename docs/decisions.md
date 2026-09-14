@@ -26,7 +26,7 @@
 
 ## ADR-005: Public initial services
 
-**Decision:** Make the initial web and API Cloud Run services publicly invokable. Superseded for the API by ADR-009.
+**Decision:** Make the initial web and API Cloud Run services publicly invokable. Superseded for the API by its current private API deployment.
 
 **Rationale:** The site needs a public entry point and the placeholder API has no protected behavior. This decision must be revisited before the API handles personal data, authenticated users, mutations, payment details, or other sensitive operations.
 
@@ -48,8 +48,8 @@
 
 **Rationale:** Firestore has no DDL schema, migration table, or collection-wide lock. A durable ledger records ordered storage changes and a fenced lease prevents concurrent runners. Per-document transactions make large changes restartable while allowing unrelated production work to continue. The application owns release compatibility by retaining old fields and keeping new fields optional during an overlap. Dedicated jobs avoid API startup timeouts. Release engineers remain responsible for preserving old query fields until an explicit storage migration completes.
 
-## ADR-009: Private API and CPU inference Job
+## ADR-009: Private API and CPU inference Job (superseded)
 
-**Decision:** Keep the web service public, require Cloud Run IAM authentication for the API, and execute recipe ingestion in a non-public CPU Cloud Run Job. The API persists a strict Firestore job document before starting one worker execution with only the document ID as an override. The worker bundles the Apache-2.0 Qwen2.5 7B Instruct Q4_K_M GGUF and uses a dedicated Firestore identity. It extracts grounded facts, resolves catalog ingredients, plans material flow, then deterministically validates and persists a recipe. Semantically invalid model output fails the job.
+**Status:** Superseded.
 
-**Rationale:** Starting inference is a data-changing, billed operation, so a public API is no longer acceptable. A Cloud Run Job provides scale-to-zero CPU without relying on request lifetime or detached API work. The 1.5B model did not meet the minimum extraction-quality bar; the 7B model improves instruction following while remaining within the Job's 8-vCPU, 16-GiB baseline. The Firestore record makes results observable and permits transactional claiming, while a dedicated queue, batching, leases, and retries remain unnecessary for the first benchmark.
+**Superseded by:** Removal of the deployed worker and inference-job API flow. `apps/worker` remains a local Qwen prompt experiment with no deployment integration.

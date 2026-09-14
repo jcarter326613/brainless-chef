@@ -21,19 +21,12 @@ afterEach(() => {
 });
 
 describe("database", () => {
-  it("configures the recipe collections with the selected database", async () => {
+  it("configures the recipe and ingredient collections with the selected database", async () => {
     const configuredDatabase = {};
     firestoreDatabase.createFirestoreDatabase.mockReturnValue(configuredDatabase);
 
     const { database } = await loadDatabase();
-    const { inferenceJobSchema, ingredientSchema, recipeSchema } = await import(
-      "../src/schemas/index.js"
-    );
-
-    const inferenceJobs = {
-      path: "inferenceJobs",
-      schema: inferenceJobSchema,
-    };
+    const { ingredientSchema, recipeSchema } = await import("../src/schemas/index.js");
     const ingredients = {
       path: "ingredients",
       schema: ingredientSchema,
@@ -43,14 +36,12 @@ describe("database", () => {
       schema: recipeSchema,
     };
     expect(database).toBe(configuredDatabase);
-    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(3);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, inferenceJobs);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, ingredients);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, recipes);
+    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(2);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, ingredients);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, recipes);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledTimes(1);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledWith({
       collections: {
-        inferenceJobs,
         ingredients,
         recipes,
       },
