@@ -1,5 +1,7 @@
-import { ingredientQuantitySchema, ingredientSchema } from "@brainless-chef/database/schemas";
-import { LlamaChatSession } from "node-llama-cpp";
+import { ingredientQuantitySchema, ingredientSchema, type IngredientQuantity } from "@brainless-chef/database/schemas";
+import { LlamaChatSession, type LlamaGrammar } from "node-llama-cpp";
+
+import type { Component, InferenceDependencies, RecipeGroup, StructuredIngredient } from "./types.js";
 
 const instructions = `
 Convert the supplied ingredient into a structured ingredient record.
@@ -99,7 +101,30 @@ const responseSchema = {
   additionalProperties: false,
 };
 
-function parseIngredient(response) {
+interface IngredientResponse {
+  name: string;
+  notes: string[];
+  optional: boolean;
+  quantity: IngredientQuantity | null;
+}
+
+interface IngredientExtractionOutput {
+  component: Component | null;
+  source: string;
+  ingredient: StructuredIngredient;
+  output: string;
+  requestTokens: number;
+  durationMs: number;
+}
+
+export interface IngredientExtractionResult {
+  ingredientGroups: Array<{ component: Component | null; ingredients: StructuredIngredient[] }>;
+  outputs: IngredientExtractionOutput[];
+  requestTokens: number;
+  durationMs: number;
+}
+
+function parseIngredient(response: IngredientResponse): StructuredIngredient {
   const ingredient = ingredientSchema.parse({ name: response.name });
 
   return {
@@ -110,9 +135,15 @@ function parseIngredient(response) {
   };
 }
 
-async function extractIngredient({ grammar, ingredient, llama, model, component }) {
+async function extractIngredient({
+  grammar,
+  ingredient,
+  llama,
+  model,
+  component,
+}: InferenceDependencies & { grammar: LlamaGrammar; ingredient: string; component: Component | null }): Promise<Omit<IngredientExtractionOutput, "component" | "source">> {
   const context = await model.createContext({ contextSize: 16_384 });
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: instructions });
+  const session = new LlamaChatSession({ contextSequence: context.getSequence() as never, systemPrompt: instructions });
   const input = JSON.stringify({ component, ingredient });
   const requestTokens = model.tokenize(`${instructions}\n${input}`).length;
   const startedAt = performance.now();
@@ -121,7 +152,7 @@ async function extractIngredient({ grammar, ingredient, llama, model, component 
     const output = await session.prompt(input, { grammar, maxTokens: 1_024, temperature: 0 });
 
     return {
-      ingredient: parseIngredient(JSON.parse(output)),
+      ingredient: parseIngredient(JSON.parse(output) as IngredientResponse),
       output,
       requestTokens,
       durationMs: Math.round(performance.now() - startedAt),
@@ -131,16 +162,20 @@ async function extractIngredient({ grammar, ingredient, llama, model, component 
   }
 }
 
-export async function extractIngredients({ llama, model, groups }) {
-  const grammar = await llama.createGrammarForJsonSchema(responseSchema);
+export async function extractIngredients({
+  llama,
+  model,
+  groups,
+}: InferenceDependencies & { groups: RecipeGroup[] }): Promise<IngredientExtractionResult> {
+  const grammar = await llama.createGrammarForJsonSchema(responseSchema as never);
   const startedAt = performance.now();
-  const outputs = [];
-  const ingredientGroups = [];
+  const outputs: IngredientExtractionOutput[] = [];
+  const ingredientGroups: IngredientExtractionResult["ingredientGroups"] = [];
 
   for (const group of groups) {
     if (group.ingredients === null) continue;
 
-    const ingredients = [];
+    const ingredients: StructuredIngredient[] = [];
 
     for (const source of group.ingredients) {
       const result = await extractIngredient({

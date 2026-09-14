@@ -1,5 +1,7 @@
 import { LlamaChatSession } from "node-llama-cpp";
 
+import type { InferenceDependencies, RecipeGroup } from "./types.js";
+
 const createInstructions = () => `
 Separate the supplied recipe into a collection of ingredients and directions.
 
@@ -20,7 +22,7 @@ Separate the supplied recipe into a collection of ingredients and directions.
 - For example, a named ingredient section is represented as {"component":{"name":"Sauce","type":"noun"},"ingredients":["ingredient text"],"directions":null}. A named direction section is represented as {"component":{"name":"Sauce","type":"noun"},"ingredients":null,"directions":["direction sentence"]}.
 `;
 
-const createResponseSchema = (headerNames) => {
+const createResponseSchema = (headerNames: string[]) => {
   const namedComponent = {
     type: "object",
     properties: {
@@ -65,17 +67,29 @@ const createResponseSchema = (headerNames) => {
   };
 };
 
-export async function groupRecipe({ llama, model, recipe, headers }) {
+export interface GroupingResult {
+  groups: RecipeGroup[];
+  output: string;
+  requestTokens: number;
+  durationMs: number;
+}
+
+export async function groupRecipe({
+  llama,
+  model,
+  recipe,
+  headers,
+}: InferenceDependencies & { recipe: string; headers: string[] }): Promise<GroupingResult> {
   const instructions = createInstructions();
   const context = await model.createContext({ contextSize: 16_384 });
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: instructions });
-  const grammar = await llama.createGrammarForJsonSchema(createResponseSchema(headers));
+  const session = new LlamaChatSession({ contextSequence: context.getSequence() as never, systemPrompt: instructions });
+  const grammar = await llama.createGrammarForJsonSchema(createResponseSchema(headers) as never);
   const requestTokens = model.tokenize(`${instructions}\n${recipe}`).length;
   const startedAt = performance.now();
 
   try {
     const output = await session.prompt(recipe, { grammar, maxTokens: 8_192, temperature: 0 });
-    const groups = JSON.parse(output);
+    const groups = JSON.parse(output) as RecipeGroup[];
 
     return {
       groups,

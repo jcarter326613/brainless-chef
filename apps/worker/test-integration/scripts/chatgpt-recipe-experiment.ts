@@ -1,9 +1,10 @@
 import { getLlama } from "node-llama-cpp";
 
-import { extractRecipeHeaders } from "../../src/step-1-extract-recipe-headers.mjs";
-import { groupRecipe } from "../../src/step-2-group-recipe.mjs";
-import { extractIngredients } from "../../src/step-3-extract-ingredients.mjs";
-import { modelPath } from "./local-model-config.mjs";
+import { extractRecipeHeaders } from "../../src/step-1-extract-recipe-headers.js";
+import { groupRecipe } from "../../src/step-2-group-recipe.js";
+import { extractIngredients } from "../../src/step-3-extract-ingredients.js";
+import { modelPath } from "./local-model-config.js";
+import { setupLocalModel } from "./setup-local-model.js";
 
 const recipe = `### Ingredients
 
@@ -45,6 +46,8 @@ const recipe = `### Ingredients
 13. Cool for 15 minutes in the pan before using the paper overhang to lift it out onto a rack. Let it cool for another 30 minutes before drizzling with glaze (if using), then slice to enjoy!
 14. Glaze:
 15. Put ingredients in bowl and whisk to combine. Glazes crust so it’s best to use immediately.`;
+
+console.log(await setupLocalModel());
 
 const llama = await getLlama({ build: "auto", gpu: "metal", progressLogs: "stderr" });
 const model = await llama.loadModel({ modelPath });

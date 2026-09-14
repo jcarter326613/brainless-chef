@@ -15,5 +15,5 @@ export const modelFiles = [
 ];
 export const modelPath = join(modelDirectory, modelFiles[0].name);
 
-export const modelUrl = (name) =>
+export const modelUrl = (name: string) =>
   `https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/${modelRevision}/${name}`;

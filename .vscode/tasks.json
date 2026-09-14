@@ -2,19 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Worker: Set Up Local Model",
-      "type": "shell",
-      "command": "corepack",
-      "args": [
-        "pnpm",
-        "setup:local-model"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/apps/worker"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "Dev: Web",
       "type": "shell",
       "command": "pnpm",

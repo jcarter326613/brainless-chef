@@ -1,34 +1,50 @@
 import { describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ outputs: [], sessions: [] }));
+import type { LlamaGrammar } from "node-llama-cpp";
+
+import type { InferenceDependencies } from "../src/types.js";
+
+interface PromptCall {
+  recipe: string;
+  options: unknown;
+}
+
+interface PromptSession {
+  prompts: PromptCall[];
+}
+
+const state = vi.hoisted(() => ({ outputs: [] as string[], sessions: [] as PromptSession[] }));
 
 vi.mock("node-llama-cpp", () => ({
   LlamaChatSession: class {
-    constructor(options) {
-      this.options = options;
-      this.prompts = [];
+    prompts: PromptCall[] = [];
+
+    constructor(_options: unknown) {
       state.sessions.push(this);
     }
 
-    async prompt(recipe, options) {
+    async prompt(recipe: string, options: unknown): Promise<string> {
       this.prompts.push({ recipe, options });
-      return state.outputs.shift();
+      const output = state.outputs.shift();
+      if (output === undefined) throw new Error("No mock output configured.");
+      return output;
     }
   },
-}));
+}) as never);
 
-import { groupRecipe } from "../src/step-2-group-recipe.mjs";
+import { groupRecipe } from "../src/step-2-group-recipe.js";
 
 function createDependencies() {
-  const context = { dispose: vi.fn(), getSequence: vi.fn(() => "sequence") };
-  const grammar = {};
-  const llama = { createGrammarForJsonSchema: vi.fn(async (schema) => grammar) };
-  const model = {
+  const context = { dispose: vi.fn(async () => undefined), getSequence: vi.fn(() => "sequence") };
+  const grammar = {} as LlamaGrammar;
+  const createGrammarForJsonSchema = vi.fn(async (_schema: never) => grammar);
+  const llama: InferenceDependencies["llama"] = { createGrammarForJsonSchema };
+  const model: InferenceDependencies["model"] = {
     createContext: vi.fn(async () => context),
     tokenize: vi.fn(() => [1, 2]),
   };
 
-  return { context, grammar, llama, model };
+  return { context, createGrammarForJsonSchema, grammar, llama, model };
 }
 
 describe("groupRecipe", () => {
@@ -39,7 +55,7 @@ describe("groupRecipe", () => {
       directions: null,
     }])];
     state.sessions = [];
-    const { context, grammar, llama, model } = createDependencies();
+    const { context, createGrammarForJsonSchema, grammar, llama, model } = createDependencies();
 
     const result = await groupRecipe({ llama, model, recipe: "recipe source", headers: ["Cake"] });
 
@@ -48,7 +64,9 @@ describe("groupRecipe", () => {
       ingredients: ["200g flour"],
       directions: null,
     }]);
-    const schema = llama.createGrammarForJsonSchema.mock.calls[0][0];
+    const schema = createGrammarForJsonSchema.mock.calls[0][0] as {
+      items: { properties: { component: unknown } };
+    };
     expect(schema.items.properties.component).toEqual({
       oneOf: [
         expect.objectContaining({ properties: expect.objectContaining({ name: { enum: ["Cake"] } }) }),
@@ -69,11 +87,13 @@ describe("groupRecipe", () => {
       directions: null,
     }])];
     state.sessions = [];
-    const { llama, model } = createDependencies();
+    const { createGrammarForJsonSchema, llama, model } = createDependencies();
 
     await groupRecipe({ llama, model, recipe: "recipe source", headers: [] });
 
-    const schema = llama.createGrammarForJsonSchema.mock.calls[0][0];
+    const schema = createGrammarForJsonSchema.mock.calls[0][0] as {
+      items: { properties: { component: unknown } };
+    };
     expect(schema.items.properties.component).toEqual({ type: "null" });
   });
 });

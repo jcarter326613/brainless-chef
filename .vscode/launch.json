@@ -13,12 +13,15 @@
       "name": "Worker: Debug Recipe Prompt Experiment",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/apps/worker/test-integration/scripts/chatgpt-recipe-experiment.mjs",
+      "program": "${workspaceFolder}/apps/worker/test-integration/scripts/chatgpt-recipe-experiment.ts",
       "cwd": "${workspaceFolder}/apps/worker",
+      "runtimeArgs": [
+        "--import",
+        "tsx"
+      ],
       "skipFiles": [
         "<node_internals>/**"
-      ],
-      "preLaunchTask": "Worker: Set Up Local Model"
+      ]
     }
   ]
 }

@@ -8,4 +8,4 @@ Run from `apps/worker`:
 pnpm experiment:chatgpt-recipe
 ```
 
-The command downloads and checksum-verifies the model in `~/.cache/brainless-chef/models` when needed, then prints Qwen's unconstrained response. The prompt is embedded in `test-integration/scripts/chatgpt-recipe-experiment.mjs`.
+The command downloads and checksum-verifies the model in `~/.cache/brainless-chef/models` when needed, then prints each structured inference step. The recipe fixture is embedded in `test-integration/scripts/chatgpt-recipe-experiment.ts`.

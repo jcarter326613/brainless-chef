@@ -1,5 +1,7 @@
 import { LlamaChatSession } from "node-llama-cpp";
 
+import type { InferenceDependencies } from "./types.js";
+
 const instructions = `
 Extract the complete ordered list of component headings nested within the supplied recipe's structural sections.
 
@@ -33,16 +35,34 @@ const responseSchema = {
   additionalProperties: false,
 };
 
-export async function extractRecipeHeaders({ llama, model, recipe }) {
+interface HeaderResponse {
+  analysis: string;
+  ingredientHeaders: string[];
+  directionHeaders: string[];
+}
+
+export interface HeaderExtractionResult {
+  headers: string[];
+  output: string;
+  requestTokens: number;
+  response: HeaderResponse;
+  durationMs: number;
+}
+
+export async function extractRecipeHeaders({
+  llama,
+  model,
+  recipe,
+}: InferenceDependencies & { recipe: string }): Promise<HeaderExtractionResult> {
   const context = await model.createContext({ contextSize: 16_384 });
-  const session = new LlamaChatSession({ contextSequence: context.getSequence(), systemPrompt: instructions });
-  const grammar = await llama.createGrammarForJsonSchema(responseSchema);
+  const session = new LlamaChatSession({ contextSequence: context.getSequence() as never, systemPrompt: instructions });
+  const grammar = await llama.createGrammarForJsonSchema(responseSchema as never);
   const requestTokens = model.tokenize(`${instructions}\n${recipe}`).length;
   const startedAt = performance.now();
 
   try {
     const output = await session.prompt(recipe, { grammar, maxTokens: 4_096, temperature: 0 });
-    const response = JSON.parse(output);
+    const response = JSON.parse(output) as HeaderResponse;
 
     return {
       headers: [...response.ingredientHeaders, ...response.directionHeaders],
