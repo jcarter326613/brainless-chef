@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --check src/step-1-extract-recipe-headers.mjs && node --check src/step-2-group-recipe.mjs && node --check test-integration/scripts/chatgpt-recipe-experiment.mjs",
+    "build": "node --check src/step-1-extract-recipe-headers.mjs && node --check src/step-2-group-recipe.mjs && node --check src/step-3-extract-ingredients.mjs && node --check test-integration/scripts/chatgpt-recipe-experiment.mjs",
     "experiment:chatgpt-recipe": "pnpm setup:local-model && node test-integration/scripts/chatgpt-recipe-experiment.mjs",
     "setup:local-model": "node test-integration/scripts/setup-local-model.mjs",
     "test": "vitest run test-unit",
     "typecheck": "node --check test-integration/scripts/local-model-config.mjs"
   },
   "dependencies": {
+    "@brainless-chef/database": "workspace:*",
     "node-llama-cpp": "^3.20.0"
   },
   "devDependencies": {

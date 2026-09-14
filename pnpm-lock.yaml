@@ -54,6 +54,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@brainless-chef/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       node-llama-cpp:
         specifier: ^3.20.0
         version: 3.20.0(supports-color@7.2.0)(typescript@5.9.3)

@@ -2,6 +2,7 @@ import { getLlama } from "node-llama-cpp";
 
 import { extractRecipeHeaders } from "../../src/step-1-extract-recipe-headers.mjs";
 import { groupRecipe } from "../../src/step-2-group-recipe.mjs";
+import { extractIngredients } from "../../src/step-3-extract-ingredients.mjs";
 import { modelPath } from "./local-model-config.mjs";
 
 const recipe = `### Ingredients
@@ -59,5 +60,11 @@ console.error(`group request tokens: ${groupStep.requestTokens}`);
 console.error(`group pass completed in ${groupStep.durationMs}ms`);
 console.log(groupStep.groups);
 console.log(groupStep.output);
+
+const ingredientStep = await extractIngredients({ llama, model, groups: groupStep.groups });
+console.error(`ingredient request tokens: ${ingredientStep.requestTokens}`);
+console.error(`ingredient pass completed in ${ingredientStep.durationMs}ms`);
+console.log(ingredientStep.ingredientGroups);
+console.log(ingredientStep.outputs);
 
 console.log("end")
