@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --check test-integration/scripts/chatgpt-recipe-experiment.mjs",
+    "build": "node --check test-integration/scripts/chatgpt-recipe-experiment.mjs && node --check test-integration/scripts/chatgpt-recipe-experiment-headers.mjs && node --check test-integration/scripts/chatgpt-recipe-experiment-groups.mjs",
     "experiment:chatgpt-recipe": "pnpm setup:local-model && node test-integration/scripts/chatgpt-recipe-experiment.mjs",
     "setup:local-model": "node test-integration/scripts/setup-local-model.mjs",
     "test": "node --check test-integration/scripts/setup-local-model.mjs",
