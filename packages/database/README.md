@@ -12,7 +12,7 @@ fencing.
 - Define every persisted document with a strict Zod schema and infer its
   TypeScript type from that schema.
 - Define collections with `defineCollection`, then export the single `database`
-  facade from `src/database.ts`. API handlers and backend jobs must not access
+  facade from `src/database.ts`. Application and migration code must not access
   application collections through raw Firestore calls.
 - Use the typed operations on `database.collections`. They validate all writes,
   point reads, and every document returned by a query, stripping fields outside

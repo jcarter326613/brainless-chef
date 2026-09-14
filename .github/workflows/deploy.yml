@@ -15,7 +15,7 @@ on:
           - development
           - production
       image_tag:
-        description: Tested development API and web image Git SHA. Required for production.
+        description: Tested development migration and web image Git SHA. Required for production.
         required: false
         type: string
       run_migrations:
@@ -49,7 +49,6 @@ jobs:
     env:
       DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment || 'development' }}
       REQUESTED_IMAGE_TAG: ${{ inputs.image_tag }}
-      TF_VAR_api_invoker_members: ${{ vars.API_INVOKER_MEMBERS || '[]' }}
     steps:
       - id: image
         name: Select release image
@@ -90,7 +89,7 @@ jobs:
             docker push "${image}"
           }
 
-          build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
+          build_if_missing migration apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/migration:${{ steps.image.outputs.tag }}"
           build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
       - name: Promote tested development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'production'
@@ -109,7 +108,7 @@ jobs:
             docker buildx imagetools create --prefer-index=false --tag "${production_image}" "${development_image}"
           }
 
-          promote_if_missing api "${{ steps.image.outputs.tag }}"
+          promote_if_missing migration "${{ steps.image.outputs.tag }}"
           promote_if_missing web "${{ steps.image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -133,12 +132,12 @@ jobs:
 
           MIGRATION_JOB="brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate"
           MIGRATION_SERVICE_ACCOUNT="brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-          API_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}"
+          MIGRATION_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/migration:${RELEASE_IMAGE_TAG}"
 
           gcloud run jobs deploy "${MIGRATION_JOB}" \
             --project "${GCP_PROJECT_ID}" \
             --region "${GCP_REGION}" \
-            --image "${API_IMAGE}" \
+            --image "${MIGRATION_IMAGE}" \
             --service-account "${MIGRATION_SERVICE_ACCOUNT}" \
             --set-env-vars "FIRESTORE_DATABASE_ID=${FIRESTORE_DATABASE_ID}" \
             --command node \
@@ -156,5 +155,4 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve \
-            -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}" \
             -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}"

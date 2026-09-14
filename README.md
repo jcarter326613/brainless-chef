@@ -1,6 +1,6 @@
 # Brainless Chef
 
-Brainless Chef is a TypeScript monorepo containing a React web application, an Express API, a local Qwen prompt experiment, and Terraform for Google Cloud deployment.
+Brainless Chef is a TypeScript monorepo containing a React web application, a Cloud Run database-migration container image, a local Qwen prompt experiment, and Terraform for Google Cloud deployment.
 
 ## Prerequisites
 
@@ -18,7 +18,6 @@ pnpm dev
 ```
 
 - Web: `http://localhost:5173`
-- API health check: `http://localhost:8080/health`
 
 Run the full local verification suite with:
 
@@ -28,7 +27,7 @@ pnpm check
 
 ## Repository layout
 
-- `apps/api`: Express API deployed to Cloud Run.
+- `apps/api`: Source for the Cloud Run database-migration container image.
 - `apps/worker`: Local Qwen recipe prompt experiment with no deployment integration.
 - `apps/web`: React/Vite web application deployed to Cloud Run.
 - `packages/database`: Server-only Zod schemas, validated repositories, and application migrations built on [`firestore-database`](https://github.com/jcarter326613/firestore-database).

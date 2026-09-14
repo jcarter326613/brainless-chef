@@ -1,5 +1,3 @@
 # Production uses the default project, region, and image repository values.
 # CI always supplies immutable image tags based on the committing SHA.
-# api_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:<tag>"
 # web_image = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:<tag>"
-# api_invoker_members = ["group:operators@example.com"]

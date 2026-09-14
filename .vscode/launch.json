@@ -2,14 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "API: Run Locally",
-      "type": "node-terminal",
-      "request": "launch",
-      "command": "pnpm dev:api",
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "Web: Debug with Local API",
+      "name": "Web: Debug",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:5173",

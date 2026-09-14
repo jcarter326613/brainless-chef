@@ -21,5 +21,4 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app ./
 USER node
-EXPOSE 8080
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/migrate.js"]

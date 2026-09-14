@@ -21,11 +21,7 @@ data "google_dns_managed_zone" "website" {
 module "cloud_run" {
   source = "../../modules/cloud-run-environment"
 
-  api_image                         = var.api_image
-  api_invoker_members               = var.api_invoker_members
-  api_runtime_service_account_email = "brainless-chef-production-api@${var.project_id}.iam.gserviceaccount.com"
   environment                       = "production"
-  firestore_database_id             = google_firestore_database.database.name
   project_id                        = var.project_id
   region                            = var.region
   web_runtime_service_account_email = "brainless-chef-production@${var.project_id}.iam.gserviceaccount.com"
