@@ -20,8 +20,8 @@ Separate the supplied recipe into a collection of ingredients and directions.
   whether the name is a noun, an optional noun or "other" such as a verb in the type field.  Component names
   should not have extra punctuation such as colons.
 - Component names should not be repeated as an ingredient or direction unless they appear separately.
-- The headers "Ingredients" and "Directions", or headers similar to those, do not indicate named components.  
-  They may indicate the start of an unnamed component.
+- "Ingredients", "Directions", "Instructions", or synomyms to those, do not indicate named components.  
+- Every other named heading must be represented as the component of its own top-level object. Do not merge the content of distinct named sections.
 - We do want to have the ingredients section and directions sections in separate components in the output JSON.  
   If we are in the ingredients section, each ingredient should be supplied as a separate string in an array of 
   ingredient strings.  Similarly, each complete direction sentence or sentences should be given in the direction 
@@ -30,9 +30,11 @@ Separate the supplied recipe into a collection of ingredients and directions.
 - Don't de-duplicate repeated ingredients.
 - Strings may be split only at sentence boundaries, while their text and punctuation must otherwise remain unchanged.
 - Line numbering or bulleting should be stripped.
+- Component names may start with a number such as "4. Sauce" but since we are discarding line numbers, the "4." doesn't count and in this scenario, "Sauce" would be a component.
 - The directions should have only one sentence per array string except in the case of fragment sentences which should be combined into the same string when they are adjacent and related.
 - Each top level object in the returned structure should correspond to a single component that can be found in the ingredients or directions sections.  Ingredients and directions should not both be present in the same object.
-- Every ingredient, direction and component should be extracted.
+- Return top-level output objects covering all source content. Every ingredient entry and direction sentence must appear exactly once. An empty collection or omitted source section is incorrect.
+- For example, a named ingredient section is represented as {"component":{"name":"Sauce","type":"noun"},"ingredients":["ingredient text"],"directions":null}. A named direction section is represented as {"component":{"name":"Sauce","type":"noun"},"ingredients":null,"directions":["direction sentence"]}.
 `
 
 const responseSchema = {
@@ -41,13 +43,12 @@ const responseSchema = {
     type: "object",
     properties: {
       component: {
-        anyOf: [
+        oneOf: [
           { 
             type: "object",
             properties: {
               name: { type: "string" },
               type: { enum: ["noun", "optional noun", "other"] },
-
             },
             required: ["name", "type"],
             additionalProperties: false,
@@ -56,7 +57,7 @@ const responseSchema = {
         ]
       },
       ingredients: {
-        anyOf: [
+        oneOf: [
           {
             type: "array",
             items: { type: "string" },
@@ -65,7 +66,7 @@ const responseSchema = {
         ],
       },
       directions: {
-        anyOf: [
+        oneOf: [
           {
             type: "array",
             items: { type: "string" },
@@ -76,20 +77,6 @@ const responseSchema = {
     },
     required: ["component", "ingredients", "directions"],
     additionalProperties: false,
-    oneOf: [
-      {
-        properties: {
-          ingredients: { type: "array" },
-          directions: { type: "null" },
-        },
-      },
-      {
-        properties: {
-          ingredients: { type: "null" },
-          directions: { type: "array" },
-        },
-      },
-    ],
   },
 }
 
@@ -148,6 +135,7 @@ try {
   console.error(`request tokens: ${requestTokens}`);
   console.error(`completed in ${Math.round(performance.now() - startedAt)}ms`);
   console.log(response);
+  console.log(output);
 } finally {
   await context.dispose();
 }
