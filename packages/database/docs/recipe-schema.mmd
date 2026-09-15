@@ -11,13 +11,13 @@ flowchart LR
 
     subgraph Prep[Prep]
       PrepTask["Prep task<br/>id<br/>instruction<br/>action"]
-      PrepIngredientInput["Ingredient input<br/>id<br/>quantity"]
-      PrepObject["Prep object<br/>id<br/>label<br/>locationToolId"]
+      IngredientInput["Ingredient input<br/>id<br/>quantity"]
+      PrepTaskInput["Prep task input<br/>id<br/>quantity"]
     end
 
     subgraph Cook[Cook]
       CookTask["Cook task<br/>id<br/>instruction<br/>action<br/>duration<br/>completion"]
-      CookOutput["Cook output<br/>id<br/>label<br/>locationToolId"]
+      CookTaskInput["Cook task input<br/>id<br/>quantity"]
     end
   end
 
@@ -27,20 +27,17 @@ flowchart LR
   RecipeRoot -->|"prep.tasks[]"| PrepTask
   RecipeRoot -->|"cook.tasks[]"| CookTask
 
-  PrepTask -->|"ingredient input"| PrepIngredientInput
-  PrepIngredientInput -->|"id"| RecipeIngredient
-  PrepTask -->|"output"| PrepObject
-  PrepObject -->|"prepObject input"| PrepTask
-  PrepObject -->|"prepObject input"| CookTask
-
-  CookTask -->|"output"| CookOutput
-  CookOutput -->|"cookOutput input"| CookTask
-  CookOutput -->|"finalOutputId"| RecipeRoot
+  PrepTask -->|"ingredient input"| IngredientInput
+  CookTask -->|"ingredient input"| IngredientInput
+  IngredientInput -->|"id"| RecipeIngredient
+  PrepTask -->|"prepTask input"| PrepTaskInput
+  CookTask -->|"prepTask input"| PrepTaskInput
+  PrepTaskInput -->|"id"| PrepTask
+  CookTask -->|"cookTask input"| CookTaskInput
+  CookTaskInput -->|"id"| CookTask
 
   Tool -->|"tools[]"| PrepTask
   Tool -->|"tools[]"| CookTask
-  Tool -->|"locationToolId"| PrepObject
-  Tool -->|"locationToolId"| CookOutput
 
   classDef catalog fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
   classDef recipe fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
@@ -49,5 +46,5 @@ flowchart LR
 
   class Ingredient catalog
   class RecipeRoot,RecipeIngredient,Tool recipe
-  class PrepTask,PrepIngredientInput,PrepObject prep
-  class CookTask,CookOutput cook
+  class PrepTask,PrepTaskInput,IngredientInput prep
+  class CookTask,CookTaskInput cook

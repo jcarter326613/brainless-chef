@@ -12,12 +12,10 @@ describe("cookTaskSchema", () => {
         id: "cook-preheat-oven",
         inputs: [],
         instruction: "Preheat the oven to 425 F.",
-        output: null,
         tools: [],
       }),
     ).toMatchObject({
       completion: "until the oven reaches 425 F",
-      output: null,
     });
   });
 
@@ -29,12 +27,31 @@ describe("cookTaskSchema", () => {
       id: "cook-temper-chocolate",
       inputs: [],
       instruction: "Temper the chocolate.",
-      output: null,
       tools: [],
     };
 
     expect(cookTaskSchema.parse(task).action).toBe("temper");
     expect(cookTaskSchema.safeParse({ ...task, action: "" }).success).toBe(false);
+  });
+
+  it("normalizes allocation quantities on task inputs", () => {
+    const task = {
+      action: "add",
+      completion: null,
+      duration: null,
+      id: "cook-add-sauce",
+      inputs: [{ id: "cook-make-sauce", quantity: { kind: "exact", unit: "CUP", value: 0.5 }, type: "cookTask" }],
+      instruction: "Add half a cup of sauce.",
+      tools: [],
+    };
+
+    expect(cookTaskSchema.parse(task).inputs[0]).toMatchObject({
+      quantity: { kind: "exact", unit: "cup", value: 0.5 },
+    });
+    expect(cookTaskSchema.safeParse({
+      ...task,
+      inputs: [{ id: "cook-make-sauce", type: "cookTask" }],
+    }).success).toBe(false);
   });
 
   it("rejects a backwards duration range", () => {
@@ -51,7 +68,6 @@ describe("cookTaskSchema", () => {
         id: "cook-rest",
         inputs: [],
         instruction: "Rest the food.",
-        output: null,
         tools: [],
       }).success,
     ).toBe(false);

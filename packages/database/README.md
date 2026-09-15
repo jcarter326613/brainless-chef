@@ -65,21 +65,21 @@ const namedExamples = await database.collections.examples.query({
 
 - `ingredients` documents are a canonical ingredient catalog containing a
   non-empty `name`.
-- `recipes` documents use schema version `1.0` and contain source provenance,
+- `recipes` documents use schema version `1.1` and contain source provenance,
   yield, recipe-scoped ingredient requirements that reference catalog IDs,
-  physical tool slots, prep tasks and objects, and cook tasks.
+  physical tool slots, prep tasks, and cook tasks.
 
 Recipe quantities distinguish exact, range, approximate, to-taste, and
 as-needed amounts. Numeric units are normalized to lowercase. Every numeric
 prep allocation is explicit and must reconcile with the recipe ingredient's
 total without inventing unit conversions.
 
-Recipe validation models material flow as two DAGs. Prep tasks may consume
-catalog ingredients or prep objects, and produce a prep object. Cook tasks may
-consume prep objects and earlier cook outputs, never raw ingredients. Every
-prep object has one producing prep task and exactly one prep or cook consumer.
-Tool references, prep-object input graphs, and output references are validated.
-Catalog ingredient existence remains a transactional write-flow responsibility.
+Recipe validation models task dependencies as two DAGs. Prep tasks may consume
+catalog ingredients or earlier prep tasks. Cook tasks may consume catalog
+ingredients, prep tasks, and earlier cook tasks. Task-reference inputs retain
+an explicit allocation quantity when the source provides one. Tool references,
+task input graphs, and ingredient allocations are validated. Catalog ingredient
+existence remains a transactional write-flow responsibility.
 
 See the
 [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)

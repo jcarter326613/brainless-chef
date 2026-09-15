@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 import {
-  cookOutputIdSchema,
   cookTaskIdSchema,
-  prepObjectIdSchema,
+  prepTaskIdSchema,
   toolIdSchema,
 } from "./identifiers.js";
 import { ingredientInputSchema } from "./ingredient-input.js";
+import { allocationQuantitySchema } from "./quantity.js";
 import { textSchema } from "./shared.js";
 
 const toolIdListSchema = z.array(toolIdSchema).refine(
@@ -14,24 +14,26 @@ const toolIdListSchema = z.array(toolIdSchema).refine(
   "Tool IDs must be unique.",
 );
 
-export const cookPrepObjectInputSchema = z
+export const cookPrepTaskInputSchema = z
   .object({
-    id: prepObjectIdSchema,
-    type: z.literal("prepObject"),
+    id: prepTaskIdSchema,
+    quantity: allocationQuantitySchema.nullable(),
+    type: z.literal("prepTask"),
   })
   .strict();
 
-export const cookOutputInputSchema = z
+export const cookTaskInputSchema = z
   .object({
-    id: cookOutputIdSchema,
-    type: z.literal("cookOutput"),
+    id: cookTaskIdSchema,
+    quantity: allocationQuantitySchema.nullable(),
+    type: z.literal("cookTask"),
   })
   .strict();
 
 export const cookInputSchema = z.discriminatedUnion("type", [
   ingredientInputSchema,
-  cookPrepObjectInputSchema,
-  cookOutputInputSchema,
+  cookPrepTaskInputSchema,
+  cookTaskInputSchema,
 ]);
 
 export const durationSchema = z
@@ -56,14 +58,6 @@ export const durationSchema = z
     }
   });
 
-export const cookOutputSchema = z
-  .object({
-    id: cookOutputIdSchema,
-    label: textSchema,
-    locationToolId: toolIdSchema.nullable(),
-  })
-  .strict();
-
 export const cookTaskSchema = z
   .object({
     action: textSchema,
@@ -72,18 +66,15 @@ export const cookTaskSchema = z
     id: cookTaskIdSchema,
     inputs: z.array(cookInputSchema),
     instruction: textSchema,
-    output: cookOutputSchema.nullable(),
     tools: toolIdListSchema,
   })
   .strict();
 
 export const cookSchema = z
   .object({
-    finalOutputId: cookOutputIdSchema.nullable(),
     tasks: z.array(cookTaskSchema),
   })
   .strict();
 
 export type CookInput = z.infer<typeof cookInputSchema>;
-export type CookOutput = z.infer<typeof cookOutputSchema>;
 export type CookTask = z.infer<typeof cookTaskSchema>;

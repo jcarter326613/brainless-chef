@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 import {
-  prepObjectIdSchema,
   prepTaskIdSchema,
   toolIdSchema,
 } from "./identifiers.js";
 import { ingredientInputSchema } from "./ingredient-input.js";
+import { allocationQuantitySchema } from "./quantity.js";
 import { textSchema } from "./shared.js";
 
 const toolIdListSchema = z.array(toolIdSchema).refine(
@@ -13,25 +13,18 @@ const toolIdListSchema = z.array(toolIdSchema).refine(
   "Tool IDs must be unique.",
 );
 
-export const prepObjectInputSchema = z
+export const prepTaskInputSchema = z
   .object({
-    id: prepObjectIdSchema,
-    type: z.literal("prepObject"),
+    id: prepTaskIdSchema,
+    quantity: allocationQuantitySchema.nullable(),
+    type: z.literal("prepTask"),
   })
   .strict();
 
 export const prepInputSchema = z.discriminatedUnion("type", [
   ingredientInputSchema,
-  prepObjectInputSchema,
+  prepTaskInputSchema,
 ]);
-
-export const prepObjectSchema = z
-  .object({
-    id: prepObjectIdSchema,
-    label: textSchema,
-    locationToolId: toolIdSchema.nullable(),
-  })
-  .strict();
 
 export const prepTaskSchema = z
   .object({
@@ -39,7 +32,6 @@ export const prepTaskSchema = z
     id: prepTaskIdSchema,
     inputs: z.array(prepInputSchema).min(1),
     instruction: textSchema,
-    output: prepObjectSchema,
     tools: toolIdListSchema,
   })
   .strict();
@@ -51,5 +43,4 @@ export const prepSchema = z
   .strict();
 
 export type PrepInput = z.infer<typeof prepInputSchema>;
-export type PrepObject = z.infer<typeof prepObjectSchema>;
 export type PrepTask = z.infer<typeof prepTaskSchema>;

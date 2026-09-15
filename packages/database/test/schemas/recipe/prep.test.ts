@@ -15,7 +15,6 @@ describe("prepTaskSchema", () => {
         },
       ],
       instruction: "Measure the salt.",
-      output: { id: "prep-object-salt", label: "Measured salt", locationToolId: null },
       tools: ["tool-measuring-spoons"],
     };
 
@@ -42,11 +41,26 @@ describe("prepTaskSchema", () => {
         },
       ],
       instruction: "Julienne the carrot.",
-      output: { id: "prep-object-carrot", label: "Julienned carrot", locationToolId: null },
       tools: [],
     };
 
     expect(prepTaskSchema.parse(task).action).toBe("julienne");
     expect(prepTaskSchema.safeParse({ ...task, action: "" }).success).toBe(false);
+  });
+
+  it("requires an allocation quantity for prep task inputs", () => {
+    const task = {
+      action: "combine",
+      id: "prep-combine-salt",
+      inputs: [{ id: "prep-measure-salt", quantity: null, type: "prepTask" }],
+      instruction: "Combine the measured salt.",
+      tools: [],
+    };
+
+    expect(prepTaskSchema.parse(task).inputs[0]).toMatchObject({ quantity: null });
+    expect(prepTaskSchema.safeParse({
+      ...task,
+      inputs: [{ id: "prep-measure-salt", type: "prepTask" }],
+    }).success).toBe(false);
   });
 });

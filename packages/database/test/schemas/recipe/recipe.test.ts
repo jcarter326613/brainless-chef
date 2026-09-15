@@ -4,7 +4,6 @@ import { recipeSchema } from "../../../src/schemas/index.js";
 
 const recipe = {
   cook: {
-    finalOutputId: "cook-output-final",
     tasks: [
       {
         action: "saute",
@@ -16,13 +15,8 @@ const recipe = {
           timerRecommended: true,
         },
         id: "cook-onion",
-        inputs: [{ id: "prep-object-onion", type: "prepObject" }],
+        inputs: [{ id: "prep-dice-onion", quantity: null, type: "prepTask" }],
         instruction: "Cook Bowl B until the onions are soft and translucent.",
-        output: {
-          id: "cook-output-onions",
-          label: "Softened onions",
-          locationToolId: "tool-skillet",
-        },
         tools: ["tool-skillet", "tool-wooden-spoon"],
       },
       {
@@ -36,15 +30,10 @@ const recipe = {
         },
         id: "cook-spices",
         inputs: [
-          { id: "cook-output-onions", type: "cookOutput" },
-          { id: "prep-object-spices", type: "prepObject" },
+          { id: "cook-onion", quantity: null, type: "cookTask" },
+          { id: "prep-combine-spices", quantity: null, type: "prepTask" },
         ],
         instruction: "Add Bowl A and stir for 30 seconds.",
-        output: {
-          id: "cook-output-final",
-          label: "Spiced onions",
-          locationToolId: "tool-skillet",
-        },
         tools: ["tool-skillet", "tool-wooden-spoon"],
       },
     ],
@@ -76,11 +65,6 @@ const recipe = {
           },
         ],
         instruction: "Dice the onion and place it in Bowl B.",
-        output: {
-          id: "prep-object-onion",
-          label: "Diced onion",
-          locationToolId: "tool-bowl-b",
-        },
         tools: ["tool-chef-knife", "tool-cutting-board", "tool-bowl-b"],
       },
       {
@@ -94,28 +78,18 @@ const recipe = {
           },
         ],
         instruction: "Measure 1 teaspoon cumin.",
-        output: {
-          id: "prep-object-cumin",
-          label: "Measured cumin",
-          locationToolId: null,
-        },
         tools: ["tool-measuring-spoons"],
       },
       {
         action: "combine",
         id: "prep-combine-spices",
-        inputs: [{ id: "prep-object-cumin", type: "prepObject" }],
+        inputs: [{ id: "prep-measure-cumin", quantity: null, type: "prepTask" }],
         instruction: "Combine the cumin in Bowl A.",
-        output: {
-          id: "prep-object-spices",
-          label: "Spice mix",
-          locationToolId: "tool-bowl-a",
-        },
         tools: ["tool-bowl-a"],
       },
     ],
   },
-  schemaVersion: "1.0",
+  schemaVersion: "1.1",
   source: {
     author: null,
     title: "Spiced Onions",
@@ -136,7 +110,7 @@ const recipe = {
 };
 
 describe("recipeSchema", () => {
-  it("accepts a recipe whose tasks pass prep objects into prep and cook tasks", () => {
+  it("accepts a recipe whose tasks reference prep and cook tasks", () => {
     expect(recipeSchema.parse(recipe)).toEqual(recipe);
   });
 
@@ -173,7 +147,6 @@ describe("recipeSchema", () => {
     const directCookRecipe = recipeSchema.parse({
       ...recipe,
       cook: {
-        finalOutputId: "cook-output-onions",
         tasks: [
           {
             ...recipe.cook.tasks[0],
@@ -197,6 +170,37 @@ describe("recipeSchema", () => {
     ]);
   });
 
+  it("allows a task result to be allocated to multiple later cook tasks", () => {
+    const splitTaskResultRecipe = recipeSchema.parse({
+      ...recipe,
+      cook: {
+        tasks: [
+          recipe.cook.tasks[0],
+          {
+            ...recipe.cook.tasks[1],
+            inputs: [
+              { id: "cook-onion", quantity: { kind: "exact", unit: "CUP", value: 0.5 }, type: "cookTask" },
+              { id: "prep-combine-spices", quantity: null, type: "prepTask" },
+            ],
+          },
+          {
+            action: "serve",
+            completion: null,
+            duration: null,
+            id: "cook-serve-onions",
+            inputs: [{ id: "cook-onion", quantity: { kind: "exact", unit: "cup", value: 0.5 }, type: "cookTask" }],
+            instruction: "Serve the remaining onions.",
+            tools: [],
+          },
+        ],
+      },
+    });
+
+    expect(splitTaskResultRecipe.cook.tasks[1].inputs[0]).toMatchObject({
+      quantity: { kind: "exact", unit: "cup", value: 0.5 },
+    });
+  });
+
   it("accepts repeated recipe ingredient catalog IDs", () => {
     const recipeWithRepeatedIngredient = {
       ...recipe,
@@ -212,7 +216,7 @@ describe("recipeSchema", () => {
 
   it.each([
     [
-      "a cyclic cook output graph",
+      "a cyclic cook task graph",
       {
         ...recipe,
         cook: {
@@ -222,7 +226,7 @@ describe("recipeSchema", () => {
               ...recipe.cook.tasks[0],
               inputs: [
                 ...recipe.cook.tasks[0].inputs,
-                { id: "cook-output-final", type: "cookOutput" },
+                { id: "cook-spices", quantity: null, type: "cookTask" },
               ],
             },
             ...recipe.cook.tasks.slice(1),
@@ -231,7 +235,7 @@ describe("recipeSchema", () => {
       },
     ],
     [
-      "a cyclic prep object graph",
+      "a cyclic prep task graph",
       {
         ...recipe,
         prep: {
@@ -242,7 +246,7 @@ describe("recipeSchema", () => {
               ...recipe.prep.tasks[1],
               inputs: [
                 ...recipe.prep.tasks[1].inputs,
-                { id: "prep-object-spices", type: "prepObject" },
+                { id: "prep-combine-spices", quantity: null, type: "prepTask" },
               ],
             },
             ...recipe.prep.tasks.slice(2),
@@ -251,42 +255,29 @@ describe("recipeSchema", () => {
       },
     ],
     [
-      "an unknown prep object",
+      "an unknown prep task",
       {
         ...recipe,
         cook: {
           ...recipe.cook,
           tasks: [
-            { ...recipe.cook.tasks[0], inputs: [{ id: "prep-object-missing", type: "prepObject" }] },
+            { ...recipe.cook.tasks[0], inputs: [{ id: "prep-missing", quantity: null, type: "prepTask" }] },
             ...recipe.cook.tasks.slice(1),
           ],
         },
       },
     ],
     [
-      "a prep object consumed twice",
+      "an unknown cook task",
       {
         ...recipe,
         cook: {
           ...recipe.cook,
           tasks: [
-            recipe.cook.tasks[0],
             {
-              ...recipe.cook.tasks[1],
-              inputs: [...recipe.cook.tasks[1].inputs, { id: "prep-object-onion", type: "prepObject" }],
+              ...recipe.cook.tasks[0],
+              inputs: [{ id: "cook-missing", quantity: null, type: "cookTask" }],
             },
-          ],
-        },
-      },
-    ],
-    [
-      "an unconsumed prep object",
-      {
-        ...recipe,
-        cook: {
-          ...recipe.cook,
-          tasks: [
-            { ...recipe.cook.tasks[0], inputs: [] },
             ...recipe.cook.tasks.slice(1),
           ],
         },
@@ -326,7 +317,6 @@ describe("recipeSchema", () => {
         },
       },
     ],
-    ["a missing final output", { ...recipe, cook: { ...recipe.cook, finalOutputId: "cook-output-missing" } }],
   ])("rejects %s", (_description, invalidRecipe) => {
     expect(recipeSchema.safeParse(invalidRecipe).success).toBe(false);
   });
