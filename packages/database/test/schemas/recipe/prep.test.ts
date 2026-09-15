@@ -29,4 +29,24 @@ describe("prepTaskSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("allows an arbitrary non-empty action", () => {
+    const task = {
+      action: { type: "julienne" },
+      id: "prep-julienne-carrot",
+      inputs: [
+        {
+          id: "ingredient-carrot",
+          quantity: { kind: "exact", unit: "each", value: 1 },
+          type: "ingredient",
+        },
+      ],
+      instruction: "Julienne the carrot.",
+      output: { id: "prep-object-carrot", label: "Julienned carrot", locationToolId: null },
+      tools: [],
+    };
+
+    expect(prepTaskSchema.parse(task).action.type).toBe("julienne");
+    expect(prepTaskSchema.safeParse({ ...task, action: { type: "" } }).success).toBe(false);
+  });
 });

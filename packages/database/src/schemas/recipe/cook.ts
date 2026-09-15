@@ -9,34 +9,7 @@ import {
 import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
-export const cookActionTypeSchema = z.enum([
-  "preheat",
-  "heat",
-  "add",
-  "combine",
-  "stir",
-  "whisk",
-  "fold",
-  "saute",
-  "sear",
-  "fry",
-  "boil",
-  "simmer",
-  "bake",
-  "roast",
-  "broil",
-  "steam",
-  "cover",
-  "uncover",
-  "reduce-heat",
-  "increase-heat",
-  "remove-from-heat",
-  "drain",
-  "transfer",
-  "rest",
-  "serve",
-  "custom",
-]);
+export const cookActionTypeSchema = textSchema;
 
 const toolIdListSchema = z.array(toolIdSchema).refine(
   (ids) => new Set(ids).size === ids.length,

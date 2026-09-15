@@ -21,6 +21,22 @@ describe("cookTaskSchema", () => {
     });
   });
 
+  it("allows an arbitrary non-empty action", () => {
+    const task = {
+      action: { type: "temper" },
+      completion: null,
+      duration: null,
+      id: "cook-temper-chocolate",
+      inputs: [],
+      instruction: "Temper the chocolate.",
+      output: null,
+      tools: [],
+    };
+
+    expect(cookTaskSchema.parse(task).action.type).toBe("temper");
+    expect(cookTaskSchema.safeParse({ ...task, action: { type: "" } }).success).toBe(false);
+  });
+
   it("rejects a backwards duration range", () => {
     expect(
       cookTaskSchema.safeParse({

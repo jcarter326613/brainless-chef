@@ -5,6 +5,7 @@ import { groupRecipe } from "../../src/step-2-group-recipe.js";
 import { extractIngredients } from "../../src/step-3-extract-ingredients.js";
 import { simplifyDirections } from "../../src/step-4-simplify-directions.js";
 import { separatePrepAndCook } from "../../src/step-5-separate-prep-and-cook.js";
+import { createPartialRecipe } from "../../src/step-final.js";
 import { modelPath } from "./local-model-config.js";
 import { setupLocalModel } from "./setup-local-model.js";
 
@@ -71,6 +72,9 @@ console.error(`ingredient request tokens: ${ingredientStep.requestTokens}`);
 console.error(`ingredient pass completed in ${ingredientStep.durationMs}ms`);
 console.log(ingredientStep.ingredientGroups);
 console.log(ingredientStep.outputs);
+
+const partialRecipe = createPartialRecipe(ingredientStep);
+console.log(partialRecipe);
 
 const directionStep = await simplifyDirections({ llama, model, groups: groupStep.groups });
 console.error(`direction simplification request tokens: ${directionStep.requestTokens}`);

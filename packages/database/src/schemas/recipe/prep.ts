@@ -8,31 +8,7 @@ import {
 import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
-export const prepActionTypeSchema = z.enum([
-  "measure",
-  "portion",
-  "divide",
-  "peel",
-  "trim",
-  "chop",
-  "dice",
-  "mince",
-  "slice",
-  "grate",
-  "zest",
-  "juice",
-  "rinse",
-  "drain",
-  "crack",
-  "beat",
-  "whisk",
-  "mix",
-  "combine",
-  "coat",
-  "marinate",
-  "transfer",
-  "custom",
-]);
+export const prepActionTypeSchema = textSchema;
 
 const toolIdListSchema = z.array(toolIdSchema).refine(
   (ids) => new Set(ids).size === ids.length,

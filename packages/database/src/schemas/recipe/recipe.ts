@@ -158,13 +158,6 @@ export const recipeSchema = z
   .strict()
   .superRefine((recipe, context) => {
     addDuplicateIdIssues(
-      recipe.ingredients,
-      (ingredient) => ingredient.id,
-      (index) => ["ingredients", index, "id"],
-      "Recipe ingredient",
-      context,
-    );
-    addDuplicateIdIssues(
       recipe.tools,
       (tool) => tool.id,
       (index) => ["tools", index, "id"],

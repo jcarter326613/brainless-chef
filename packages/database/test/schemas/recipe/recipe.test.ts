@@ -197,6 +197,19 @@ describe("recipeSchema", () => {
     ]);
   });
 
+  it("accepts repeated recipe ingredient catalog IDs", () => {
+    const recipeWithRepeatedIngredient = {
+      ...recipe,
+      ingredients: [
+        recipe.ingredients[0],
+        { ...recipe.ingredients[0], notes: ["for garnish"] },
+        recipe.ingredients[1],
+      ],
+    };
+
+    expect(recipeSchema.parse(recipeWithRepeatedIngredient)).toEqual(recipeWithRepeatedIngredient);
+  });
+
   it.each([
     [
       "a cyclic cook output graph",
