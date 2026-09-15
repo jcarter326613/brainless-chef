@@ -17,6 +17,8 @@ Resolve the inputs for one atomic recipe direction using only the supplied avail
 - Set fullyConsumed true only when the direction uses all of the candidate currently available. If the direction uses an unstated amount, it uses all available candidate material.
 - Set available when the direction combines, transforms, or moves material that can be used by a later direction. Give it a concise grounded label and the named container when present. Set it null for actions that do not make material available, such as preheating or lining a pan.
 - The available label must describe only material produced from the selected inputs and the current direction. Do not invent ingredients, quantities, containers, or actions.
+- Ignore candidates used only as a release or coating on a pan, sheet, tray, or work surface. Greasing, oiling, buttering, flouring, dusting, coating, or spraying a pan or surface does not consume the candidate as food.
+- For directions that only treat a pan or work surface, select no inputs and set available to null.
 `;
 
 const allocationQuantityResponseSchema = {

@@ -11,6 +11,7 @@ interface PromptCall {
 
 interface PromptSession {
   prompts: PromptCall[];
+  systemPrompt: string;
 }
 
 const state = vi.hoisted(() => ({ outputs: [] as string[], sessions: [] as PromptSession[] }));
@@ -18,8 +19,10 @@ const state = vi.hoisted(() => ({ outputs: [] as string[], sessions: [] as Promp
 vi.mock("node-llama-cpp", () => ({
   LlamaChatSession: class {
     prompts: PromptCall[] = [];
+    systemPrompt: string;
 
-    constructor(_options: unknown) {
+    constructor(options: { systemPrompt?: string } | undefined) {
+      this.systemPrompt = options?.systemPrompt ?? "";
       state.sessions.push(this);
     }
 
@@ -152,6 +155,32 @@ describe("createRelationships", () => {
 
     expect(result.outputs[0].candidates.map((candidate) => candidate.id)).toEqual(["ingredient:1"]);
     expect(result.outputs[1].candidates.map((candidate) => candidate.id)).toEqual(["ingredient:2"]);
+  });
+
+  it("prompts to ignore surface-treatment candidates that are not consumed", async () => {
+    state.outputs = [JSON.stringify({ available: null, inputs: [] })];
+    state.sessions = [];
+    const { llama, model } = createDependencies();
+
+    const result = await createRelationships({
+      directions: [
+        { component: { name: "Cake", type: "noun" }, direction: "Grease the pan with butter.", order: 0, source: "Grease a cake pan." },
+      ],
+      ingredientGroups: [
+        { component: { name: "Cake", type: "noun" }, ingredients: [{ name: "butter", notes: [], optional: false, quantity: { kind: "exact", packageSize: null, unit: "tbsp", value: 1 } }] },
+      ],
+      llama,
+      model,
+    });
+
+    expect(state.sessions[0].systemPrompt).toMatch(/greasing|oiling|buttering|grease|oil/i);
+    expect(state.sessions[0].systemPrompt).toContain("does not consume the candidate as food");
+    expect(result.relationships[0].available).toBeNull();
+    expect(result.relationships[0].inputs).toEqual([]);
+    expect(result.outputs[0].candidates).toContainEqual(expect.objectContaining({
+      id: "ingredient:0",
+      remainingWhole: 1,
+    }));
   });
 
   it("retains partially consumed candidates", async () => {
