@@ -83,12 +83,17 @@ console.error(`direction simplification pass completed in ${directionStep.durati
 console.log(directionStep.directions);
 console.log(directionStep.outputs);
 
-const relationshipStep = createRelationships({
+const relationshipStep = await createRelationships({
   directions: directionStep.directions,
   ingredientGroups: ingredientStep.ingredientGroups,
+  llama,
+  model,
 });
+console.error(`relationship request tokens: ${relationshipStep.requestTokens}`);
+console.error(`relationship pass completed in ${relationshipStep.durationMs}ms`);
 console.log(relationshipStep.ingredients);
 console.log(relationshipStep.relationships);
+console.log(relationshipStep.outputs);
 
 const separationStep = await separatePrepAndCook({ llama, model, directions: relationshipStep.directions });
 console.error(`prep/cook separation request tokens: ${separationStep.requestTokens}`);
