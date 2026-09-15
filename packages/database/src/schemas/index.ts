@@ -9,7 +9,6 @@ export {
   toolIdSchema,
 } from "./recipe/identifiers.js";
 export {
-  cookActionTypeSchema,
   cookInputSchema,
   cookOutputSchema,
   cookSchema,
@@ -17,7 +16,6 @@ export {
   durationSchema,
 } from "./recipe/cook.js";
 export {
-  prepActionTypeSchema,
   prepInputSchema,
   prepObjectSchema,
   prepSchema,

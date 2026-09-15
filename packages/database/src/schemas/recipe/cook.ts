@@ -9,8 +9,6 @@ import {
 import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
-export const cookActionTypeSchema = textSchema;
-
 const toolIdListSchema = z.array(toolIdSchema).refine(
   (ids) => new Set(ids).size === ids.length,
   "Tool IDs must be unique.",
@@ -68,11 +66,7 @@ export const cookOutputSchema = z
 
 export const cookTaskSchema = z
   .object({
-    action: z
-      .object({
-        type: cookActionTypeSchema,
-      })
-      .strict(),
+    action: textSchema,
     completion: textSchema.nullable(),
     duration: durationSchema.nullable(),
     id: cookTaskIdSchema,

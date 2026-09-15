@@ -5,7 +5,7 @@ import { prepTaskSchema } from "../../../src/schemas/index.js";
 describe("prepTaskSchema", () => {
   it("requires an explicit allocation for raw ingredient inputs", () => {
     const task = {
-      action: { type: "measure" },
+      action: "measure",
       id: "prep-measure-salt",
       inputs: [
         {
@@ -32,7 +32,7 @@ describe("prepTaskSchema", () => {
 
   it("allows an arbitrary non-empty action", () => {
     const task = {
-      action: { type: "julienne" },
+      action: "julienne",
       id: "prep-julienne-carrot",
       inputs: [
         {
@@ -46,7 +46,7 @@ describe("prepTaskSchema", () => {
       tools: [],
     };
 
-    expect(prepTaskSchema.parse(task).action.type).toBe("julienne");
-    expect(prepTaskSchema.safeParse({ ...task, action: { type: "" } }).success).toBe(false);
+    expect(prepTaskSchema.parse(task).action).toBe("julienne");
+    expect(prepTaskSchema.safeParse({ ...task, action: "" }).success).toBe(false);
   });
 });

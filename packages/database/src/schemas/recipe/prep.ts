@@ -8,8 +8,6 @@ import {
 import { ingredientInputSchema } from "./ingredient-input.js";
 import { textSchema } from "./shared.js";
 
-export const prepActionTypeSchema = textSchema;
-
 const toolIdListSchema = z.array(toolIdSchema).refine(
   (ids) => new Set(ids).size === ids.length,
   "Tool IDs must be unique.",
@@ -37,11 +35,7 @@ export const prepObjectSchema = z
 
 export const prepTaskSchema = z
   .object({
-    action: z
-      .object({
-        type: prepActionTypeSchema,
-      })
-      .strict(),
+    action: textSchema,
     id: prepTaskIdSchema,
     inputs: z.array(prepInputSchema).min(1),
     instruction: textSchema,

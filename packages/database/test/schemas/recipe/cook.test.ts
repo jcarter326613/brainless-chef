@@ -6,7 +6,7 @@ describe("cookTaskSchema", () => {
   it("allows a non-material cook task with a textual completion condition", () => {
     expect(
       cookTaskSchema.parse({
-        action: { type: "preheat" },
+        action: "preheat",
         completion: "until the oven reaches 425 F",
         duration: null,
         id: "cook-preheat-oven",
@@ -23,7 +23,7 @@ describe("cookTaskSchema", () => {
 
   it("allows an arbitrary non-empty action", () => {
     const task = {
-      action: { type: "temper" },
+      action: "temper",
       completion: null,
       duration: null,
       id: "cook-temper-chocolate",
@@ -33,14 +33,14 @@ describe("cookTaskSchema", () => {
       tools: [],
     };
 
-    expect(cookTaskSchema.parse(task).action.type).toBe("temper");
-    expect(cookTaskSchema.safeParse({ ...task, action: { type: "" } }).success).toBe(false);
+    expect(cookTaskSchema.parse(task).action).toBe("temper");
+    expect(cookTaskSchema.safeParse({ ...task, action: "" }).success).toBe(false);
   });
 
   it("rejects a backwards duration range", () => {
     expect(
       cookTaskSchema.safeParse({
-        action: { type: "rest" },
+        action: "rest",
         completion: null,
         duration: {
           attention: "passive",

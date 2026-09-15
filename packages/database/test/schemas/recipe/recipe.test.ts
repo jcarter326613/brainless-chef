@@ -7,7 +7,7 @@ const recipe = {
     finalOutputId: "cook-output-final",
     tasks: [
       {
-        action: { type: "saute" },
+        action: "saute",
         completion: "until the onions are soft and translucent",
         duration: {
           attention: "occasional",
@@ -26,7 +26,7 @@ const recipe = {
         tools: ["tool-skillet", "tool-wooden-spoon"],
       },
       {
-        action: { type: "add" },
+        action: "add",
         completion: null,
         duration: {
           attention: "active",
@@ -66,7 +66,7 @@ const recipe = {
   prep: {
     tasks: [
       {
-        action: { type: "dice" },
+        action: "dice",
         id: "prep-dice-onion",
         inputs: [
           {
@@ -84,7 +84,7 @@ const recipe = {
         tools: ["tool-chef-knife", "tool-cutting-board", "tool-bowl-b"],
       },
       {
-        action: { type: "measure" },
+        action: "measure",
         id: "prep-measure-cumin",
         inputs: [
           {
@@ -102,7 +102,7 @@ const recipe = {
         tools: ["tool-measuring-spoons"],
       },
       {
-        action: { type: "combine" },
+        action: "combine",
         id: "prep-combine-spices",
         inputs: [{ id: "prep-object-cumin", type: "prepObject" }],
         instruction: "Combine the cumin in Bowl A.",
