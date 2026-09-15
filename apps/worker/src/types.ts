@@ -21,6 +21,19 @@ export interface StructuredIngredient {
   quantity: IngredientQuantity | null;
 }
 
+export interface AtomicDirection {
+  component: Component | null;
+  direction: string;
+  order: number;
+  source: string;
+}
+
+export type DirectionPhase = "prep" | "cook";
+
+export interface ClassifiedDirection extends AtomicDirection {
+  phase: DirectionPhase;
+}
+
 export interface InferenceDependencies {
   llama: {
     createGrammarForJsonSchema(schema: never): Promise<LlamaGrammar>;
