@@ -32,7 +32,7 @@ vi.mock("node-llama-cpp", () => ({
   },
 }) as never);
 
-import { separatePrepAndCook } from "../src/step-5-separate-prep-and-cook.js";
+import { separatePrepAndCook } from "../src/step-6-separate-prep-and-cook.js";
 
 function createDependencies() {
   const contexts: Array<{ dispose: ReturnType<typeof vi.fn>; getSequence: ReturnType<typeof vi.fn> }> = [];

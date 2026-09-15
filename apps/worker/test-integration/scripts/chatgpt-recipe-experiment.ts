@@ -4,7 +4,8 @@ import { extractRecipeHeaders } from "../../src/step-1-extract-recipe-headers.js
 import { groupRecipe } from "../../src/step-2-group-recipe.js";
 import { extractIngredients } from "../../src/step-3-extract-ingredients.js";
 import { simplifyDirections } from "../../src/step-4-simplify-directions.js";
-import { separatePrepAndCook } from "../../src/step-5-separate-prep-and-cook.js";
+import { createRelationships } from "../../src/step-5-create-relationships.js";
+import { separatePrepAndCook } from "../../src/step-6-separate-prep-and-cook.js";
 import { createPartialRecipe } from "../../src/step-final.js";
 import { modelPath } from "./local-model-config.js";
 import { setupLocalModel } from "./setup-local-model.js";
@@ -82,7 +83,14 @@ console.error(`direction simplification pass completed in ${directionStep.durati
 console.log(directionStep.directions);
 console.log(directionStep.outputs);
 
-const separationStep = await separatePrepAndCook({ llama, model, directions: directionStep.directions });
+const relationshipStep = createRelationships({
+  directions: directionStep.directions,
+  ingredientGroups: ingredientStep.ingredientGroups,
+});
+console.log(relationshipStep.ingredients);
+console.log(relationshipStep.relationships);
+
+const separationStep = await separatePrepAndCook({ llama, model, directions: relationshipStep.directions });
 console.error(`prep/cook separation request tokens: ${separationStep.requestTokens}`);
 console.error(`prep/cook separation pass completed in ${separationStep.durationMs}ms`);
 console.log(separationStep.prepDirections);
