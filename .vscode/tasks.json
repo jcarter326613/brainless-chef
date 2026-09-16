@@ -2,20 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Dev: API",
-      "type": "shell",
-      "command": "pnpm",
-      "args": [
-        "dev:api"
-      ],
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": {
-        "group": "brainless-chef",
-        "panel": "dedicated"
-      }
-    },
-    {
       "label": "Dev: Web",
       "type": "shell",
       "command": "pnpm",

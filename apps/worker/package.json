@@ -4,12 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "benchmark": "node dist/benchmark.js",
     "build": "tsc --project tsconfig.json",
-    "evaluate": "node dist/evaluate.js",
-    "start": "node dist/index.js",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit --project tsconfig.json"
+    "experiment:chatgpt-recipe": "tsx test-integration/scripts/chatgpt-recipe-experiment.ts",
+    "test": "vitest run test-unit",
+    "typecheck": "tsc --project tsconfig.test.json"
   },
   "dependencies": {
     "@brainless-chef/database": "workspace:*",
@@ -17,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
+    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }

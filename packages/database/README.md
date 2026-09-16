@@ -12,7 +12,7 @@ fencing.
 - Define every persisted document with a strict Zod schema and infer its
   TypeScript type from that schema.
 - Define collections with `defineCollection`, then export the single `database`
-  facade from `src/database.ts`. API handlers and backend jobs must not access
+  facade from `src/database.ts`. Application and migration code must not access
   application collections through raw Firestore calls.
 - Use the typed operations on `database.collections`. They validate all writes,
   point reads, and every document returned by a query, stripping fields outside
@@ -63,23 +63,30 @@ const namedExamples = await database.collections.examples.query({
 
 ## Stored Documents
 
-- `inferenceJobs` documents contain pasted recipe text, a blank or completed raw
-  model output, status, process-clock timestamps, and a sanitized failure message
-  when applicable. The worker claims queued jobs transactionally before inference.
-- `ingredients` documents contain a non-empty `name`.
-- `unitTypes` documents contain a non-empty `name`. Unit conversions are not
-  modeled yet.
-- `recipes` documents contain a non-empty `title`, ingredient entries, and an
-  ordered instruction list. A recipe ingredient entry stores an `id` for an
-  `ingredients` document and a `quantity` with a positive, finite `value` and
-  a `unitTypeId` for a `unitTypes` document. Instructions reference recipe
-  ingredient IDs through `ingredientIds`.
+- `ingredients` documents are a canonical ingredient catalog containing a
+  non-empty `name`.
+- `recipes` documents use schema version `1.1` and contain source provenance,
+  yield, recipe-scoped ingredient requirements that reference catalog IDs,
+  physical tool slots, prep tasks, and cook tasks.
 
-Recipe validation requires unique ingredient IDs, rejects references outside
-the recipe, and requires every listed ingredient to be used by at least one
-instruction. It cannot verify that referenced `ingredients` or `unitTypes`
-documents exist; future write flows must make those checks transactionally.
+Recipe quantities distinguish exact, range, approximate, to-taste, and
+as-needed amounts. Numeric units are normalized to lowercase. Every numeric
+prep allocation is explicit and must reconcile with the recipe ingredient's
+total without inventing unit conversions.
+
+Recipe validation models task dependencies as two DAGs. Prep tasks may consume
+catalog ingredients or earlier prep tasks. Cook tasks may consume catalog
+ingredients, prep tasks, and earlier cook tasks. Task-reference inputs retain
+an explicit allocation quantity when the source provides one. Tool references,
+task input graphs, and ingredient allocations are validated. Catalog ingredient
+existence remains a transactional write-flow responsibility.
 
 See the
 [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database)
 for compatible-release and migration requirements.
+
+## Schema Diagram
+
+Run `pnpm schema:diagram` from this package to regenerate
+`docs/recipe-schema.svg` from `docs/recipe-schema.mmd`. Update the diagram source
+when changing recipe schema relationships, then commit both files.

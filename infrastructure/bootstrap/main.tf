@@ -71,12 +71,12 @@ resource "google_artifact_registry_repository" "containers" {
   # Production retains three deployable releases; development artifacts are
   # short-lived because every main-branch deployment publishes a new image.
   cleanup_policies {
-    id     = "keep-recent-production-api"
+    id     = "keep-recent-production-migration"
     action = "KEEP"
 
     most_recent_versions {
       keep_count            = 3
-      package_name_prefixes = ["production/api"]
+      package_name_prefixes = ["production/migration"]
     }
   }
 
@@ -87,16 +87,6 @@ resource "google_artifact_registry_repository" "containers" {
     most_recent_versions {
       keep_count            = 3
       package_name_prefixes = ["production/web"]
-    }
-  }
-
-  cleanup_policies {
-    id     = "keep-recent-production-worker"
-    action = "KEEP"
-
-    most_recent_versions {
-      keep_count            = 3
-      package_name_prefixes = ["production/worker"]
     }
   }
 
@@ -149,34 +139,12 @@ resource "google_service_account" "runtime" {
   depends_on = [google_project_service.required]
 }
 
-# Keep the existing environment runtime identities for the web services. API
-# services receive separate identities because they alone need database access.
-resource "google_service_account" "api_runtime" {
-  for_each = local.firestore_databases
-
-  account_id   = "brainless-chef-${each.key}-api"
-  display_name = "Brainless Chef ${each.key} API runtime"
-  description  = "Firestore-enabled runtime identity for the ${each.key} Cloud Run API."
-
-  depends_on = [google_project_service.required]
-}
-
 resource "google_service_account" "migration_runtime" {
   for_each = local.firestore_databases
 
   account_id   = "brainless-${each.key}-migrator"
   display_name = "Brainless Chef ${each.key} database migrator"
   description  = "Firestore migration job identity for the ${each.key} database."
-
-  depends_on = [google_project_service.required]
-}
-
-resource "google_service_account" "worker_runtime" {
-  for_each = local.firestore_databases
-
-  account_id   = "brainless-${each.key}-worker"
-  display_name = "Brainless Chef ${each.key} worker runtime"
-  description  = "CPU inference worker identity for the ${each.key} environment."
 
   depends_on = [google_project_service.required]
 }
@@ -248,44 +216,12 @@ resource "google_service_account_iam_member" "deployer_runtime_user" {
   member             = "serviceAccount:${google_service_account.ci_deployer.email}"
 }
 
-resource "google_service_account_iam_member" "deployer_api_runtime_user" {
-  for_each = local.firestore_databases
-
-  service_account_id = google_service_account.api_runtime[each.key].name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
-}
-
 resource "google_service_account_iam_member" "deployer_migration_runtime_user" {
   for_each = local.firestore_databases
 
   service_account_id = google_service_account.migration_runtime[each.key].name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.ci_deployer.email}"
-}
-
-resource "google_service_account_iam_member" "deployer_worker_runtime_user" {
-  for_each = local.firestore_databases
-
-  service_account_id = google_service_account.worker_runtime[each.key].name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
-}
-
-# Firestore evaluates server SDK authorization with IAM, not Security Rules.
-# The conditions confine each API and migration identity to one database.
-resource "google_project_iam_member" "api_runtime_firestore_user" {
-  for_each = local.firestore_databases
-
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.api_runtime[each.key].email}"
-
-  condition {
-    title       = "${each.key}-firestore-only"
-    description = "Allows the ${each.key} API to access only its Firestore database."
-    expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
-  }
 }
 
 resource "google_project_iam_member" "migration_runtime_firestore_user" {
@@ -298,20 +234,6 @@ resource "google_project_iam_member" "migration_runtime_firestore_user" {
   condition {
     title       = "${each.key}-migration-firestore-only"
     description = "Allows the ${each.key} migrator to access only its Firestore database."
-    expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
-  }
-}
-
-resource "google_project_iam_member" "worker_runtime_firestore_user" {
-  for_each = local.firestore_databases
-
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.worker_runtime[each.key].email}"
-
-  condition {
-    title       = "${each.key}-worker-firestore-only"
-    description = "Allows the ${each.key} worker to access only its Firestore database."
     expression  = "resource.name == 'projects/${var.project_id}/databases/${local.firestore_databases[each.key]}'"
   }
 }

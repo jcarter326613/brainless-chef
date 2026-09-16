@@ -14,25 +14,9 @@ variable "firestore_location_id" {
   default     = "us-east1"
 }
 
-variable "api_image" {
-  type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:latest"
-}
-
 variable "web_image" {
   type    = string
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:latest"
-}
-
-variable "api_invoker_members" {
-  description = "Users, groups, or service accounts allowed to invoke the private production API."
-  type        = list(string)
-  default     = []
-}
-
-variable "worker_image" {
-  type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/worker:latest"
 }
 
 variable "dns_managed_zone_name" {

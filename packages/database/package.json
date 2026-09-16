@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "default": "./dist/schemas/index.js"
     }
   },
   "files": [
@@ -15,6 +19,7 @@
   ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
+    "schema:diagram": "mmdc -i docs/recipe-schema.mmd -o docs/recipe-schema.svg -b transparent",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --project tsconfig.json"
   },
@@ -23,6 +28,7 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.17.0",
     "@types/node": "^22.15.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

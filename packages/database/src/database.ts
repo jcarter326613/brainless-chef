@@ -4,11 +4,9 @@ import {
 } from "firestore-database";
 
 import {
-  inferenceJobSchema,
   ingredientSchema,
   recipeSchema,
-  unitTypeSchema,
-} from "./schemas.js";
+} from "./schemas/index.js";
 
 const databaseId = process.env.FIRESTORE_DATABASE_ID;
 if (!databaseId) {
@@ -16,10 +14,6 @@ if (!databaseId) {
 }
 
 const collections = {
-  inferenceJobs: defineCollection({
-    path: "inferenceJobs",
-    schema: inferenceJobSchema,
-  }),
   ingredients: defineCollection({
     path: "ingredients",
     schema: ingredientSchema,
@@ -27,10 +21,6 @@ const collections = {
   recipes: defineCollection({
     path: "recipes",
     schema: recipeSchema,
-  }),
-  unitTypes: defineCollection({
-    path: "unitTypes",
-    schema: unitTypeSchema,
   }),
 };
 

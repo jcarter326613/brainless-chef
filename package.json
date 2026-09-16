@@ -9,8 +9,7 @@
   "scripts": {
     "build": "corepack pnpm -r build",
     "check": "corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
-    "dev": "corepack pnpm --parallel --stream --filter @brainless-chef/api --filter @brainless-chef/web dev",
-    "dev:api": "corepack pnpm --filter @brainless-chef/api dev",
+    "dev": "corepack pnpm --filter @brainless-chef/web dev",
     "dev:web": "corepack pnpm --filter @brainless-chef/web dev",
     "test": "corepack pnpm -r test",
     "typecheck": "corepack pnpm --filter @brainless-chef/database build && corepack pnpm -r typecheck"
