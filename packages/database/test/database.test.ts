@@ -21,12 +21,14 @@ afterEach(() => {
 });
 
 describe("database", () => {
-  it("configures the recipe and ingredient collections with the selected database", async () => {
+  it("configures all collections with the selected database", async () => {
     const configuredDatabase = {};
     firestoreDatabase.createFirestoreDatabase.mockReturnValue(configuredDatabase);
 
     const { database } = await loadDatabase();
-    const { ingredientSchema, recipeSchema } = await import("../src/schemas/index.js");
+    const { ingredientSchema, loginTokenSchema, recipeSchema, userSchema } = await import(
+      "../src/schemas/index.js"
+    );
     const ingredients = {
       path: "ingredients",
       schema: ingredientSchema,
@@ -35,15 +37,27 @@ describe("database", () => {
       path: "recipes",
       schema: recipeSchema,
     };
+    const users = {
+      path: "users",
+      schema: userSchema,
+    };
+    const loginTokens = {
+      path: "login-tokens",
+      schema: loginTokenSchema,
+    };
     expect(database).toBe(configuredDatabase);
-    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(2);
+    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(4);
     expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, ingredients);
     expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, recipes);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, users);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(4, loginTokens);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledTimes(1);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledWith({
       collections: {
         ingredients,
         recipes,
+        users,
+        loginTokens,
       },
       databaseId: "recipe-test",
     });

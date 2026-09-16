@@ -12,6 +12,7 @@ locals {
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "run.googleapis.com",
+    "secretmanager.googleapis.com",
     "serviceusage.googleapis.com",
     "sts.googleapis.com",
     "storage.googleapis.com"
@@ -260,6 +261,14 @@ resource "google_project_iam_member" "deployer_firestore_database_reader" {
     description = "Allows Terraform to read ${each.key} Firestore database metadata only."
     expression  = "resource.name == 'projects/${var.project_id}/databases/${each.value}'"
   }
+}
+
+# Terraform creates and updates the per-environment SMTP and JWT secrets and
+# their versions when the environment stacks apply.
+resource "google_project_iam_member" "deployer_secret_admin" {
+  project = var.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
 }
 
 resource "google_iam_workload_identity_pool" "github" {

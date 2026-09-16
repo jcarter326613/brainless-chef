@@ -155,4 +155,6 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve \
-            -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}"
+            -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
+            -var="mailtrap_api_token=${{ secrets.MAILTRAP_API_TOKEN }}" \
+            -var="jwt_secret=${{ secrets.JWT_SECRET }}"

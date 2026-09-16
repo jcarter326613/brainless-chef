@@ -11,7 +11,8 @@ COPY packages/database/package.json packages/database/package.json
 RUN pnpm install --filter @brainless-chef/web... --frozen-lockfile
 
 COPY apps/web apps/web
-RUN pnpm --filter @brainless-chef/web build \
+COPY packages packages
+RUN pnpm --filter @brainless-chef/web... build \
   && pnpm --filter @brainless-chef/web deploy --legacy --prod /app
 
 FROM node:22-alpine
@@ -21,4 +22,4 @@ ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app ./
 USER node
 EXPOSE 8080
-CMD ["sh", "-c", "node_modules/.bin/serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"]
+CMD ["sh", "-c", "node dist-server/server.js"]

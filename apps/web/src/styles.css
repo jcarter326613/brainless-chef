@@ -46,3 +46,52 @@ h1 {
   font-size: 1.25rem;
   line-height: 1.45;
 }
+
+.account {
+  margin-top: 2.5rem;
+  max-width: 420px;
+}
+
+.account label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #1d3327;
+  font-family: Arial, sans-serif;
+  font-size: 0.95rem;
+}
+
+.signin-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.signin-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #1d3327;
+  border-radius: 4px;
+  background: #fffdf8;
+  color: #1d3327;
+  font: inherit;
+}
+
+.signin-row button {
+  padding: 0.65rem 1rem;
+  border: 1px solid #1d3327;
+  border-radius: 4px;
+  background: #1d3327;
+  color: #f7f1e5;
+  font-family: Arial, sans-serif;
+  font-size: 0.9rem;
+}
+
+.signin-row button:disabled {
+  opacity: 0.6;
+}
+
+.message {
+  margin: 1.25rem 0 0;
+  color: #bd542c;
+  font-size: 1rem;
+}

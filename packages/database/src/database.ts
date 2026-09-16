@@ -5,7 +5,9 @@ import {
 
 import {
   ingredientSchema,
+  loginTokenSchema,
   recipeSchema,
+  userSchema,
 } from "./schemas/index.js";
 
 const databaseId = process.env.FIRESTORE_DATABASE_ID;
@@ -21,6 +23,14 @@ const collections = {
   recipes: defineCollection({
     path: "recipes",
     schema: recipeSchema,
+  }),
+  users: defineCollection({
+    path: "users",
+    schema: userSchema,
+  }),
+  loginTokens: defineCollection({
+    path: "login-tokens",
+    schema: loginTokenSchema,
   }),
 };
 

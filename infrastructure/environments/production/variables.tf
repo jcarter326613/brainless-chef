@@ -30,3 +30,45 @@ variable "website_domain" {
   type        = string
   default     = "brainlesschef.com"
 }
+
+variable "mailtrap_api_token" {
+  description = "Mailtrap API token for production sending."
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_secret" {
+  description = "HMAC secret for production login and session tokens."
+  type        = string
+  sensitive   = true
+}
+
+variable "mailtrap_verification_txt" {
+  description = "Mailtrap sending-domain verification TXT value for the apex domain."
+  type        = string
+  default     = ""
+}
+
+variable "mailtrap_dkim_selector" {
+  description = "DKIM selector used by Mailtrap for the verified sending domain."
+  type        = string
+  default     = "mail"
+}
+
+variable "mailtrap_dkim_txt" {
+  description = "Mailtrap-provided DKIM TXT value for the verified sending domain."
+  type        = string
+  default     = ""
+}
+
+variable "mailtrap_spf_txt" {
+  description = "SPF TXT value authorizing Mailtrap to send for the apex domain."
+  type        = string
+  default     = ""
+}
+
+variable "mailtrap_dmarc_txt" {
+  description = "DMARC TXT value for the apex domain."
+  type        = string
+  default     = ""
+}

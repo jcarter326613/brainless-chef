@@ -32,7 +32,7 @@
 
 ## ADR-006: Production custom domain through Cloud Run mapping
 
-**Decision:** Map `brainlesschef.com` directly to the production web service through Cloud Run domain mapping and publish its records in the existing Cloud DNS zone.
+**Decision:** Map `brainlesschef.com` directly to the production web service and `dev.brainlesschef.com` to the development web service through Cloud Run domain mapping, and publish their records in the existing Cloud DNS zone.
 
 **Rationale:** This preserves scale-to-zero Cloud Run pricing and avoids a load balancer or reserved IP. Cloud Run manages the TLS certificate. Domain mapping is a Preview feature with documented limitations, so revisit this decision if production reliability or advanced edge controls require a GA load-balancer-based approach.
 
@@ -53,3 +53,11 @@
 **Status:** Superseded.
 
 **Superseded by:** Removal of the deployed HTTP API, worker, and inference-job flow. `apps/worker` remains a local Qwen prompt experiment with no deployment integration.
+
+## ADR-010: Colocated web API and Mailtrap magic-link login
+
+**Decision:** Re-introduce the HTTP API as `apps/web/api`, served under `/api` by the same Express process that serves the built SPA, on the same origin as the site. Send transactional email through the Mailtrap Node SDK (HTTPS API) wrapped in one `MailService` utility called from request handlers. Authenticate users with single-use email magic links: a 15-minute login JWT backed by a `loginTokens` document, exchanged for a 60-day `HttpOnly` session cookie signed with the same HMAC secret. User and login-token documents live in the environment's existing Firestore database. Development uses the Mailtrap sandbox (mail captured, never delivered); production uses the verified `brainlesschef.com` sending domain. Domain verification, DKIM, SPF, and DMARC records are published in Cloud DNS.
+
+**Rationale:** The site already runs one Cloud Run service, so mounting `/api` on it adds an API without a second service, load balancer, or CORS layer, and keeps `HttpOnly` cookies on the same origin. Mailtrap's SDK is a plain HTTPS call, which sidesteps the Google Cloud edge block on outbound destination port 25 entirely (the provider owns the SMTP delivery hop, IP reputation, retries, and DKIM signing). Email is a roughly 100 ms request-scoped side effect, so no queue, worker, or Cloud Run Job is warranted; a failed send returns 503 and the user can request another link. Workspace was rejected as a per-user recurring cost for login-only mail. Magic links avoid storing passwords and match the existing reference implementation.
+
+**Consequences:** The web runtime now holds `roles/datastore.user` scoped to its own Firestore database. Firestore IAM cannot scope collections, so the runtime can technically reach recipe documents; no endpoint reads them today, and any future data-reading endpoint must enforce per-user authorization before shipping. Session tokens are stateless, so there is no server-side revocation; rotate `JWT_SECRET` to invalidate all sessions. `secretmanager.googleapis.com` and a bootstrap-managed `roles/secretmanager.admin` binding for the deployer were added, and the deploy workflow now passes Mailtrap and JWT secrets from GitHub environment secrets.
