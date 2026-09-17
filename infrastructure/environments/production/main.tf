@@ -32,8 +32,6 @@ module "cloud_run" {
   site_origin                       = "https://brainlesschef.com"
   mail_from                         = "no-reply@brainlesschef.com"
   mailtrap_mode                     = "sending"
-  mailtrap_api_token                = var.mailtrap_api_token
-  jwt_secret                        = var.jwt_secret
 }
 
 # This mapping exists only in production, so the apex domain never points at

@@ -39,85 +39,95 @@ export type PrepareLoginLinkResult =
   | { result: "ready"; jti: string; user: StoredUser }
   | { result: "throttled"; retryAfterMs: number; user: StoredUser };
 
-export function createUserService(
-  database: AuthDatabase,
-  options: { loginTokenTtlMs: number; resendCooldownMs: number },
-) {
-  const nowEpochMs = () => Date.now();
+export interface UserServiceOptions {
+  loginTokenTtlMs: number;
+  resendCooldownMs: number;
+}
 
-  async function findUserByEmail(email: string): Promise<StoredUser | undefined> {
-    const matches = await database.collections.users.query({
+export class UserService {
+  private readonly database: AuthDatabase;
+  private readonly loginTokenTtlMs: number;
+  private readonly resendCooldownMs: number;
+
+  constructor(database: AuthDatabase, options: UserServiceOptions) {
+    this.database = database;
+    this.loginTokenTtlMs = options.loginTokenTtlMs;
+    this.resendCooldownMs = options.resendCooldownMs;
+  }
+
+  async prepareLoginLink(email: string): Promise<PrepareLoginLinkResult> {
+    let user = await this.findUserByEmail(email);
+    let isNewUser = false;
+
+    if (!user) {
+      user = await this.database.collections.users.create({
+        email,
+        createdAtEpoch: this.nowEpochMs(),
+        lastLoginAtEpoch: null,
+        lastLoginLinkSentAtEpoch: null,
+        schemaVersion: "2.0",
+      });
+      isNewUser = true;
+    } else if (user.data.lastLoginLinkSentAtEpoch !== null) {
+      const elapsedMs = Date.now() - user.data.lastLoginLinkSentAtEpoch;
+      if (elapsedMs < this.resendCooldownMs) {
+        return {
+          result: "throttled",
+          retryAfterMs: this.resendCooldownMs - elapsedMs,
+          user,
+        };
+      }
+    }
+
+    await this.database.collections.users.update(user.id, (current) => ({
+      ...current,
+      lastLoginLinkSentAtEpoch: this.nowEpochMs(),
+    }));
+
+    const jti = randomUUID();
+    await this.database.collections.loginTokens.set(jti, {
+      email,
+      createdAtEpoch: this.nowEpochMs(),
+      expiresAtEpoch: Date.now() + this.loginTokenTtlMs,
+      schemaVersion: "2.0",
+    });
+
+    return { result: isNewUser ? "created" : "ready", jti, user };
+  }
+
+  async consumeLoginToken(jti: string): Promise<LoginToken | undefined> {
+    return this.database.transaction(async ({ collections }) => {
+      const token = await collections.loginTokens.get(jti);
+      if (!token) {
+        return undefined;
+      }
+      await collections.loginTokens.delete(jti);
+      if (token.data.expiresAtEpoch <= Date.now()) {
+        return undefined;
+      }
+      return token.data;
+    });
+  }
+
+  async getUser(id: string): Promise<StoredUser | undefined> {
+    return this.database.collections.users.get(id);
+  }
+
+  async recordLogin(id: string): Promise<void> {
+    await this.database.collections.users.update(id, (current) => ({
+      ...current,
+      lastLoginAtEpoch: this.nowEpochMs(),
+    }));
+  }
+
+  private nowEpochMs(): number {
+    return Date.now();
+  }
+
+  private async findUserByEmail(email: string): Promise<StoredUser | undefined> {
+    const matches = await this.database.collections.users.query({
       where: [{ field: "email", operator: "==", value: email }],
     });
     return matches[0];
   }
-
-  return {
-    async prepareLoginLink(email: string): Promise<PrepareLoginLinkResult> {
-      let user = await findUserByEmail(email);
-      let isNewUser = false;
-
-      if (!user) {
-        user = await database.collections.users.create({
-          email,
-          createdAtEpoch: nowEpochMs(),
-          lastLoginAtEpoch: null,
-          lastLoginLinkSentAtEpoch: null,
-          schemaVersion: "2.0",
-        });
-        isNewUser = true;
-      } else if (user.data.lastLoginLinkSentAtEpoch !== null) {
-        const elapsedMs = Date.now() - user.data.lastLoginLinkSentAtEpoch;
-        if (elapsedMs < options.resendCooldownMs) {
-          return {
-            result: "throttled",
-            retryAfterMs: options.resendCooldownMs - elapsedMs,
-            user,
-          };
-        }
-      }
-
-      await database.collections.users.update(user.id, (current) => ({
-        ...current,
-        lastLoginLinkSentAtEpoch: nowEpochMs(),
-      }));
-
-      const jti = randomUUID();
-      await database.collections.loginTokens.set(jti, {
-        email,
-        createdAtEpoch: nowEpochMs(),
-        expiresAtEpoch: Date.now() + options.loginTokenTtlMs,
-        schemaVersion: "2.0",
-      });
-
-      return { result: isNewUser ? "created" : "ready", jti, user };
-    },
-
-    async consumeLoginToken(jti: string): Promise<LoginToken | undefined> {
-      return database.transaction(async ({ collections }) => {
-        const token = await collections.loginTokens.get(jti);
-        if (!token) {
-          return undefined;
-        }
-        await collections.loginTokens.delete(jti);
-        if (token.data.expiresAtEpoch <= Date.now()) {
-          return undefined;
-        }
-        return token.data;
-      });
-    },
-
-    async getUser(id: string): Promise<StoredUser | undefined> {
-      return database.collections.users.get(id);
-    },
-
-    async recordLogin(id: string): Promise<void> {
-      await database.collections.users.update(id, (current) => ({
-        ...current,
-        lastLoginAtEpoch: nowEpochMs(),
-      }));
-    },
-  };
 }
-
-export type UserService = ReturnType<typeof createUserService>;

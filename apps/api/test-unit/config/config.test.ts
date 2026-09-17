@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadConfig } from "../src/config.js";
+import { loadConfig } from "../../src/config/config.js";
 
 function validEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {

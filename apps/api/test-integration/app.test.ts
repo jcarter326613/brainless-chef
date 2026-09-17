@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
-import type { AppConfig } from "../src/config.js";
+import type { AppConfig } from "../src/config/config.js";
 import type { Mailer } from "../src/services/mail-service.js";
 import type {
   AuthDatabase,

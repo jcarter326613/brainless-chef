@@ -13,26 +13,43 @@ export interface SessionTokenClaims {
   sub: string;
 }
 
-export function createTokenService(secret: string) {
-  const signLogin = createSigner({ key: secret, algorithm: "HS256", expiresIn: "15m" });
-  const verifyLogin = createVerifier({ key: secret, algorithms: ["HS256"], allowedAud: "login" });
-  const signSession = createSigner({ key: secret, algorithm: "HS256", expiresIn: "60d" });
-  const verifySession = createVerifier({ key: secret, algorithms: ["HS256"], allowedAud: "session" });
+type TokenSigner = (payload: Record<string, unknown>) => string;
+type TokenVerifier = (token: string) => Record<string, unknown>;
 
-  return {
-    signLoginToken(claims: LoginTokenClaims): string {
-      return signLogin({ ...claims, aud: "login" });
-    },
-    verifyLoginToken(token: string): LoginTokenClaims {
-      return verifyLogin(token) as LoginTokenClaims;
-    },
-    signSessionToken(claims: SessionTokenClaims): string {
-      return signSession({ ...claims, aud: "session" });
-    },
-    verifySessionToken(token: string): SessionTokenClaims {
-      return verifySession(token) as SessionTokenClaims;
-    },
-  };
+export class TokenService {
+  private readonly signLogin: TokenSigner;
+  private readonly verifyLogin: TokenVerifier;
+  private readonly signSession: TokenSigner;
+  private readonly verifySession: TokenVerifier;
+
+  constructor(secret: string) {
+    this.signLogin = createSigner({ key: secret, algorithm: "HS256", expiresIn: "15m" }) as TokenSigner;
+    this.verifyLogin = createVerifier({
+      key: secret,
+      algorithms: ["HS256"],
+      allowedAud: "login",
+    }) as TokenVerifier;
+    this.signSession = createSigner({ key: secret, algorithm: "HS256", expiresIn: "60d" }) as TokenSigner;
+    this.verifySession = createVerifier({
+      key: secret,
+      algorithms: ["HS256"],
+      allowedAud: "session",
+    }) as TokenVerifier;
+  }
+
+  signLoginToken(claims: LoginTokenClaims): string {
+    return this.signLogin({ ...claims, aud: "login" });
+  }
+
+  verifyLoginToken(token: string): LoginTokenClaims {
+    return this.verifyLogin(token) as unknown as LoginTokenClaims;
+  }
+
+  signSessionToken(claims: SessionTokenClaims): string {
+    return this.signSession({ ...claims, aud: "session" });
+  }
+
+  verifySessionToken(token: string): SessionTokenClaims {
+    return this.verifySession(token) as unknown as SessionTokenClaims;
+  }
 }
-
-export type TokenService = ReturnType<typeof createTokenService>;

@@ -27,8 +27,6 @@ module "cloud_run" {
   site_origin                       = "https://dev.brainlesschef.com"
   mail_from                         = "no-reply@brainlesschef.com"
   mailtrap_mode                     = "sandbox"
-  mailtrap_api_token                = var.mailtrap_api_token
-  jwt_secret                        = var.jwt_secret
 }
 
 data "google_dns_managed_zone" "website" {

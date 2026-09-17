@@ -52,15 +52,3 @@ variable "mailtrap_mode" {
   description = "Mailtrap client mode: \"sending\" for real delivery or \"sandbox\" to capture test mail."
   type        = string
 }
-
-variable "mailtrap_api_token" {
-  description = "Mailtrap API token, stored as a Secret Manager version."
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_secret" {
-  description = "HMAC secret for login and session tokens, stored as a Secret Manager version."
-  type        = string
-  sensitive   = true
-}

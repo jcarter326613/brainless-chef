@@ -2,10 +2,10 @@ import type { LoginToken, User } from "@brainless-chef/database";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createUserService,
   type AuthDatabase,
   type LoginTokenCollection,
   type UserCollection,
+  UserService,
 } from "../../src/services/user-service.js";
 
 const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -76,14 +76,14 @@ class MemoryDatabase implements AuthDatabase {
 
 function makeHarness() {
   const database = new MemoryDatabase();
-  const userService = createUserService(database, {
+  const userService = new UserService(database, {
     loginTokenTtlMs: LOGIN_TOKEN_TTL_MS,
     resendCooldownMs: RESEND_COOLDOWN_MS,
   });
   return { database, userService };
 }
 
-describe("createUserService", () => {
+describe("UserService", () => {
   afterEach(() => {
     vi.useRealTimers();
   });

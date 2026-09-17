@@ -4,12 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import { AuthController } from "../../src/controllers/auth.js";
 import type { Mailer } from "../../src/services/mail-service.js";
-import { createTokenService } from "../../src/services/token-service.js";
+import { TokenService } from "../../src/services/token-service.js";
 import {
-  createUserService,
   type AuthDatabase,
   type LoginTokenCollection,
   type UserCollection,
+  UserService,
 } from "../../src/services/user-service.js";
 
 const secret = "Y".repeat(44);
@@ -91,11 +91,11 @@ class MemoryDatabase implements AuthDatabase {
 
 function makeController() {
   const database = new MemoryDatabase();
-  const userService = createUserService(database, {
+  const userService = new UserService(database, {
     loginTokenTtlMs: 15 * 60 * 1000,
     resendCooldownMs: 60 * 1000,
   });
-  const tokenService = createTokenService(secret);
+  const tokenService = new TokenService(secret);
   const mailer = new FakeMailer();
   const controller = new AuthController({
     mailer,

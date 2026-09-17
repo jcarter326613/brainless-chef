@@ -36,18 +36,6 @@ variable "website_domain" {
   default     = "brainlesschef.com"
 }
 
-variable "mailtrap_api_token" {
-  description = "Mailtrap API token for production sending."
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_secret" {
-  description = "HMAC secret for production login and session tokens."
-  type        = string
-  sensitive   = true
-}
-
 variable "mailtrap_verification_txt" {
   description = "Mailtrap sending-domain verification TXT value for the apex domain."
   type        = string

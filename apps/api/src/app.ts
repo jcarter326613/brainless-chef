@@ -1,11 +1,11 @@
 import cookieParser from "cookie-parser";
 import express from "express";
 
-import type { AppConfig } from "./config.js";
+import type { AppConfig } from "./config/config.js";
 import { createAuthRouter } from "./routes/auth.js";
 import type { Mailer } from "./services/mail-service.js";
-import { createTokenService } from "./services/token-service.js";
-import { createUserService, type AuthDatabase } from "./services/user-service.js";
+import { TokenService } from "./services/token-service.js";
+import { UserService, type AuthDatabase } from "./services/user-service.js";
 
 export const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
 export const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -25,8 +25,8 @@ export function createApp(options: AppOptions) {
   app.use(express.json({ limit: "16kb" }));
   app.use(cookieParser());
 
-  const tokenService = createTokenService(options.config.jwtSecret);
-  const userService = createUserService(options.database, {
+  const tokenService = new TokenService(options.config.jwtSecret);
+  const userService = new UserService(options.database, {
     loginTokenTtlMs: LOGIN_TOKEN_TTL_MS,
     resendCooldownMs: RESEND_COOLDOWN_MS,
   });

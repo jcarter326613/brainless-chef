@@ -110,12 +110,42 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
-      - name: Ensure Firestore database exists
+      - name: Ensure Firestore database and secret containers exist
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve \
-            -target=google_firestore_database.database
+            -target=google_firestore_database.database \
+            -target=module.cloud_run.google_secret_manager_secret.jwt \
+            -target=module.cloud_run.google_secret_manager_secret.mailtrap
+      - name: Seed application secrets
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment || 'development' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAILTRAP_API_TOKEN: ${{ secrets.MAILTRAP_API_TOKEN }}
+        run: |
+          seed_secret() {
+            secret_name="$1"
+            secret_value="$2"
+            if [[ -z "${secret_value}" ]]; then
+              echo "No value configured for ${secret_name}; skipping." >&2
+              return 0
+            fi
+            if gcloud secrets versions list "${secret_name}" \
+              --project "${GCP_PROJECT_ID}" \
+              --filter="state=ENABLED" \
+              --format='value(name)' \
+              --limit=1 | grep -q .; then
+              echo "Secret ${secret_name} already has an enabled version; skipping."
+              return 0
+            fi
+            printf '%s' "${secret_value}" | gcloud secrets versions add "${secret_name}" \
+              --project "${GCP_PROJECT_ID}" \
+              --data-file=-
+            echo "Seeded ${secret_name}."
+          }
+          seed_secret "jwt-secret-${DEPLOYMENT_ENVIRONMENT}" "${JWT_SECRET}"
+          seed_secret "mailtrap-api-token-${DEPLOYMENT_ENVIRONMENT}" "${MAILTRAP_API_TOKEN}"
       - name: Deploy database migrator service
         env:
           RELEASE_IMAGE_TAG: ${{ steps.image.outputs.tag }}
@@ -188,6 +218,4 @@ jobs:
           terraform init -input=false
           terraform apply -input=false -auto-approve \
             -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
-            -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}" \
-            -var="mailtrap_api_token=${{ secrets.MAILTRAP_API_TOKEN }}" \
-            -var="jwt_secret=${{ secrets.JWT_SECRET }}"
+            -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}"

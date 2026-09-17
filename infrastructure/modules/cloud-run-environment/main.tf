@@ -83,19 +83,12 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.firestore_database_id
       }
 
+      # Names the environment's Parameter Manager parameters so the API can
+      # resolve its remaining configuration (site origin, mail settings) at
+      # startup instead of receiving it as environment variables.
       env {
-        name  = "SITE_ORIGIN"
-        value = var.site_origin
-      }
-
-      env {
-        name  = "MAIL_FROM"
-        value = var.mail_from
-      }
-
-      env {
-        name  = "MAILTRAP_MODE"
-        value = var.mailtrap_mode
+        name  = "APP_ENVIRONMENT"
+        value = var.environment
       }
 
       env {
@@ -145,18 +138,18 @@ resource "google_cloud_run_v2_service_iam_member" "api_public_invoker" {
   member   = "allUsers"
 }
 
+# Secrets are stored in Cloud Secret Manager and injected as Cloud Run env
+# variables (value_source). Secret IDs are environment-qualified because both
+# environments live in the same project. Secret versions are created by the
+# deploy pipeline (gcloud secrets versions add), not by Terraform, so secret
+# values never appear in Terraform state.
 resource "google_secret_manager_secret" "mailtrap" {
   project   = var.project_id
-  secret_id = "mailtrap-api-token"
+  secret_id = "mailtrap-api-token-${var.environment}"
 
   replication {
     auto {}
   }
-}
-
-resource "google_secret_manager_secret_version" "mailtrap" {
-  secret      = google_secret_manager_secret.mailtrap.id
-  secret_data = var.mailtrap_api_token
 }
 
 resource "google_secret_manager_secret_iam_member" "api_runtime_mailtrap_reader" {
@@ -168,16 +161,11 @@ resource "google_secret_manager_secret_iam_member" "api_runtime_mailtrap_reader"
 
 resource "google_secret_manager_secret" "jwt" {
   project   = var.project_id
-  secret_id = "jwt-secret"
+  secret_id = "jwt-secret-${var.environment}"
 
   replication {
     auto {}
   }
-}
-
-resource "google_secret_manager_secret_version" "jwt" {
-  secret      = google_secret_manager_secret.jwt.id
-  secret_data = var.jwt_secret
 }
 
 resource "google_secret_manager_secret_iam_member" "api_runtime_jwt_reader" {
@@ -185,6 +173,60 @@ resource "google_secret_manager_secret_iam_member" "api_runtime_jwt_reader" {
   secret_id = google_secret_manager_secret.jwt.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${var.api_runtime_service_account_email}"
+}
+
+# Non-secret API configuration lives in Cloud Parameter Manager so it is not
+# baked into environment variables. The API resolves these parameters at
+# startup. Parameter IDs are environment-qualified for the same project.
+resource "google_parameter_manager_parameter" "site_origin" {
+  parameter_id = "api-site-origin-${var.environment}"
+}
+
+resource "google_parameter_manager_parameter_version" "site_origin" {
+  parameter            = google_parameter_manager_parameter.site_origin.id
+  parameter_version_id = format("v-%s", substr(sha256(var.site_origin), 0, 16))
+  parameter_data       = var.site_origin
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_parameter_manager_parameter" "mail_from" {
+  parameter_id = "api-mail-from-${var.environment}"
+}
+
+resource "google_parameter_manager_parameter_version" "mail_from" {
+  parameter            = google_parameter_manager_parameter.mail_from.id
+  parameter_version_id = format("v-%s", substr(sha256(var.mail_from), 0, 16))
+  parameter_data       = var.mail_from
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_parameter_manager_parameter" "mailtrap_mode" {
+  parameter_id = "api-mailtrap-mode-${var.environment}"
+}
+
+resource "google_parameter_manager_parameter_version" "mailtrap_mode" {
+  parameter            = google_parameter_manager_parameter.mailtrap_mode.id
+  parameter_version_id = format("v-%s", substr(sha256(var.mailtrap_mode), 0, 16))
+  parameter_data       = var.mailtrap_mode
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# The provider version pinned by this repo predates per-parameter IAM
+# resources, so the API runtime reads parameters project-wide. The project
+# only stores these non-secret API configuration parameters.
+resource "google_project_iam_member" "api_runtime_parameter_reader" {
+  project = var.project_id
+  role    = "roles/parametermanager.viewer"
+  member  = "serviceAccount:${var.api_runtime_service_account_email}"
 }
 
 # The API runtime is the only runtime that reaches Firestore; the web runtime

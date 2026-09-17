@@ -24,18 +24,6 @@ variable "api_image" {
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/api:latest"
 }
 
-variable "mailtrap_api_token" {
-  description = "Mailtrap API token for the development sandbox."
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_secret" {
-  description = "HMAC secret for development login and session tokens."
-  type        = string
-  sensitive   = true
-}
-
 variable "dns_managed_zone_name" {
   description = "Existing Cloud DNS zone that serves brainlesschef.com."
   type        = string

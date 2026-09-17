@@ -81,7 +81,7 @@ The `Deploy` GitHub Actions workflow uses the Git commit SHA as the API, migrati
 - A manual production dispatch requires `image_tag`: the full SHA of a development migration and web release already deployed and tested. It promotes those images unless each production artifact is already retained for rollback.
 - Configure the GitHub `production` Environment with required reviewers before production use. The workflow's environment binding then enforces approval before it receives its OIDC token.
 
-Before Terraform updates the web service, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database before its migration ledger is initialized. For an initial environment, this step creates the database and the subsequent ordering initializes its ledger before the web service deploys. Do not deploy a schema-changing release while an older deployed application version still relies on the previous stored shape.
+Before Terraform updates the web service, the workflow first applies a targeted foundation: the environment's Firestore database and its Secret Manager containers. For an initial environment, this step creates the database before its migration ledger is initialized, and creates the secret containers the API depends on; the workflow then seeds those containers' first versions from GitHub secrets before the full stacks apply. Do not deploy a schema-changing release while an older deployed application version still relies on the previous stored shape.
 
 Compatible releases deploy without changing existing documents. On every deploy the workflow applies the environment's dedicated migrate stack (`infrastructure/environments/<environment>/migrate`), deploying the `brainless-chef-<environment>-migrate` Cloud Run service with the release migration image before the web/API stack applies. This ordering ensures the migrator always runs the same migration registry as the release being validated. The workflow then enqueues a Cloud Tasks HTTP task on the `brainless-chef-<environment>-migrate` queue (`migrate-<environment>-<sha>`) targeting the migrator's `/__migrate` endpoint under the environment migration identity, and polls `/__migrate/status/<task>` until the run succeeds or fails. Re-running the same release short-circuits on the already-succeeded task, so migrations run automatically on every deploy and are safe to repeat. The queue allows one concurrent dispatch and no retries, so a migration either completes once or fails loudly. The CI identity cannot perform the migration itself. A failed migration leaves the already-deployed compatible web and API services running; unrelated production writes continue while each migrated document is protected by its transaction.
 
@@ -97,6 +97,25 @@ Firestore migrations are forward-only. Use compatible releases for strict schema
 Fields used in Firestore filters, ordering, indexes, or cursors must remain compatible during the overlap. Do not issue queries against a new or renamed field until an explicit storage migration has populated it. Runtime query code validates known fields but never modifies documents.
 
 To roll back production, manually dispatch the workflow with the SHA of one of the three retained production releases. The workflow reuses that production artifact; if it has not yet been promoted, it copies the matching development artifact instead. A rollback is permitted only when its migration image has the same explicit migration registry. Recover from an incompatible migration with a new forward release or a deliberate database restore, not by bypassing the ledger.
+
+## Secrets and configuration
+
+Runtime secrets and non-secret configuration are not baked into container images or passed as plain `-var` values from the workflow, so their values never enter Terraform state.
+
+**Secret Manager holds the two secrets.** Each environment owns a `google_secret_manager_secret` container per secret: `jwt-secret-<environment>` and `mailtrap-api-token-<environment>`. The environment Terraform stack creates the containers and grants the API runtime access, but never creates versions and never stores values. The `Deploy` workflow's foundation step creates the containers, and its seed step adds a version from the `JWT_SECRET` and `MAILTRAP_API_TOKEN` GitHub environment secrets only when the container has no enabled version — so re-deploys are idempotent. Cloud Run injects the values into the API container through `env.value_source` (`secret_key_ref`); the API never reads them itself.
+
+Rotate a secret by adding a new enabled version and destroying the old one; the container's latest version serves the next API redeployment:
+
+```sh
+printf '%s' "$NEW_VALUE" | gcloud secrets versions add jwt-secret-production \
+  --project brainlesschef --data-file=-
+gcloud secrets versions destroy jwt-secret-production \
+  --project brainlesschef -v <old-version>
+```
+
+GitHub secret values must be updated to the same new value first so a subsequent container-first deploy does not re-seed it. Development can read its secrets from repository variables; production requires the environment-protected secrets.
+
+**Parameter Manager holds non-secret per-environment configuration.** Parameters `api-site-origin-<environment>`, `api-mail-from-<environment>`, and `api-mailtrap-mode-<environment>` store values that are plain Terraform inputs (`site_origin`, `mail_from`, `mailtrap_mode`), so normal `terraform apply` updates them. Version IDs are content-derived (`v-<sha256>`), so changing a value creates a new version and retires the old one; the API resolves `latest` at startup. The API runtime service account has `roles/parametermanager.viewer` project-wide because this provider generation predates per-parameter IAM resources; the project stores only these configuration parameters. At startup the API fetches the three latest versions under Application Default Credentials and merges them over its base environment, so parameter changes take effect on the next API deployment and no commit-specific value is hard-coded. Parameters that cannot be rendered (local development without a project, or missing values) only log a warning and the service keeps its defaults. `APP_ENVIRONMENT` is an identifier (not a secret) set on the API container so the API can resolve its parameters; other identifiers such as the Firestore database name remain environment variables.
 
 ## Changes to IAM
 
