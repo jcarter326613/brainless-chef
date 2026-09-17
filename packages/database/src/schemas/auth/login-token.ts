@@ -3,9 +3,9 @@ import { z } from "zod";
 export const loginTokenSchema = z
   .object({
     email: z.email(),
-    createdAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
-    schemaVersion: z.literal("1.0"),
+    createdAtEpoch: z.number(),
+    expiresAtEpoch: z.number(),
+    schemaVersion: z.literal("2.0"),
   })
   .strict();
 

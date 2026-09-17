@@ -3,8 +3,8 @@
   "compilerOptions": {
     "lib": ["ES2023"],
     "outDir": "dist-server",
-    "rootDir": "api",
+    "rootDir": "server",
     "types": ["node"]
   },
-  "include": ["api"]
+  "include": ["server"]
 }

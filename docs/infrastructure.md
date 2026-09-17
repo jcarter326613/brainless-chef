@@ -31,7 +31,7 @@ All Terraform state is sensitive operational data and must remain in the version
 
 Bootstrap grants the CI deployer a custom DNS role on the existing `brainlesschef-com` zone only. It can read the zone and manage record-set changes, but has no project-wide Cloud DNS permission. The deployer must also be a verified Google Search Console owner of `brainlesschef.com` before Terraform can create a Cloud Run domain mapping.
 
-The environment stacks own Firestore Native Mode databases in `us-east1`: production owns `(default)` and development owns `development`. The location selected for the first Firestore database is permanent. The production and development migration service accounts receive `roles/datastore.user` only for their assigned database through IAM conditions; web identities have no Firestore data access. CI can deploy migration jobs as their dedicated identities, but CI itself can read database metadata only and cannot read or write documents or create, update, or delete databases.
+The environment stacks own Firestore Native Mode databases in `us-east1`: production owns `(default)` and development owns `development`. The location selected for the first Firestore database is permanent. The production and development API service accounts and migration service accounts receive `roles/datastore.user` only for their assigned database through IAM conditions; web identities have no Firestore data access. CI can deploy migration jobs as their dedicated identities, but CI itself can read database metadata only and cannot read or write documents or create, update, or delete databases.
 
 After introducing or changing runtime identities, reapply `infrastructure/bootstrap` from the trusted administrator workstation before running the updated deployment workflow.
 
@@ -56,7 +56,7 @@ If `terraform_state_bucket_name` is changed, change the hard-coded backend bucke
 
 Cloud Run services use request-based CPU allocation and `min_instance_count = 0`; no service instance is kept warm, and CPU and memory are billed only during startup, shutdown, and request handling. Each service caps at two instances. This does not prevent charges from requests, egress, or retained storage.
 
-The state bucket deletes archived state versions after 30 days. Container images are separated by environment: development images expire after 3 days, while the 3 most recent production migration and web versions are retained for rollback. Artifact Registry cleanup is asynchronous, so transient versions can remain briefly after they meet a deletion policy.
+The state bucket deletes archived state versions after 30 days. Container images are separated by environment: development images expire after 3 days, while the 3 most recent production API and web versions are retained for rollback. Artifact Registry cleanup is asynchronous, so transient versions can remain briefly after they meet a deletion policy.
 
 ## Production domain
 
@@ -74,7 +74,7 @@ curl -I https://brainlesschef.com
 
 ## Deployment
 
-The `Deploy` GitHub Actions workflow uses the Git commit SHA as the migration and web release identifier. Development checks Artifact Registry before building either component. Production promotes component manifests directly inside Artifact Registry without rebuilding them.
+The `Deploy` GitHub Actions workflow uses the Git commit SHA as the API and web release identifier. Development checks Artifact Registry before building either component. Production promotes component manifests directly inside Artifact Registry without rebuilding them.
 
 - A push to `main` deploys development.
 - A manual development dispatch builds the selected commit and deploys it to development.
@@ -83,7 +83,7 @@ The `Deploy` GitHub Actions workflow uses the Git commit SHA as the migration an
 
 Before Terraform updates the web service, the workflow first applies the environment's Firestore database resource only. This targeted foundation step permits a first deployment to create the database before its migration ledger is initialized. For an initial environment, manually dispatch `Deploy` with `run_migrations` enabled; it initializes the ledger before the web service deploys. Do not use this pre-deployment option for a schema-changing release while an older deployed application version still relies on the previous stored shape.
 
-Compatible releases deploy without changing existing documents. Manually dispatch `Deploy` with `run_migrations` enabled when an explicit storage migration must run, using the migration image's full Git SHA. It runs the single-task `brainless-chef-<environment>-migrate` Cloud Run Job under the environment migration identity. The CI identity cannot perform the migration directly. A failed migration leaves the already-deployed compatible web service running; unrelated production writes continue while each migrated document is protected by its transaction.
+Compatible releases deploy without changing existing documents. Manually dispatch `Deploy` with `run_migrations` enabled when an explicit storage migration must run, using the API image's full Git SHA. It runs the single-task `brainless-chef-<environment>-migrate` Cloud Run Job under the environment migration identity. The CI identity cannot perform the migration directly. A failed migration leaves the already-deployed compatible web and API services running; unrelated production writes continue while each migrated document is protected by its transaction.
 
 The migration ledger and lease live in the `__firestore_migrations` collection. Re-run the same release job after correcting an external failure. If migration logic must change after it has started, add a new migration rather than editing the existing one. Never edit a completed migration or manually clear a live lease. See the [`firestore-database` documentation](https://github.com/jcarter326613/firestore-database) for the full migration and query contract.
 

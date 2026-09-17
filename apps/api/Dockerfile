@@ -21,4 +21,4 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app ./
 USER node
-CMD ["node", "dist/migrate.js"]
+CMD ["node", "dist/server.js"]

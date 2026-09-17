@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import cookieParser from "cookie-parser";
 import express from "express";
 
@@ -17,7 +15,6 @@ export interface AppOptions {
   config: AppConfig;
   database: AuthDatabase;
   mailer: Mailer;
-  staticDir?: string;
 }
 
 export function createApp(options: AppOptions) {
@@ -51,21 +48,6 @@ export function createApp(options: AppOptions) {
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "not_found" });
-  });
-
-  const staticDir = options.staticDir ?? path.resolve(import.meta.dirname, "..", "dist");
-  app.use(express.static(staticDir));
-
-  app.get("/*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      res.status(404).json({ error: "not_found" });
-      return;
-    }
-    res.sendFile(path.join(staticDir, "index.html"), (error) => {
-      if (error) {
-        next(error);
-      }
-    });
   });
 
   return app;

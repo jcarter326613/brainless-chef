@@ -1,7 +1,7 @@
 import { createSigner } from "fast-jwt";
 import { describe, expect, it } from "vitest";
 
-import { createTokenService, SESSION_TTL_MS } from "../api/services/token-service.js";
+import { createTokenService, SESSION_TTL_MS } from "../src/services/token-service.js";
 
 const secret = "Z".repeat(44);
 

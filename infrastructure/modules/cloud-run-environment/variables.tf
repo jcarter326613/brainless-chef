@@ -18,13 +18,23 @@ variable "web_runtime_service_account_email" {
   type        = string
 }
 
+variable "api_runtime_service_account_email" {
+  description = "Pre-created least-privilege Cloud Run API runtime identity with Firestore access."
+  type        = string
+}
+
 variable "web_image" {
   description = "Fully qualified web container image reference."
   type        = string
 }
 
+variable "api_image" {
+  description = "Fully qualified API container image reference."
+  type        = string
+}
+
 variable "firestore_database_id" {
-  description = "Firestore database ID the web runtime may access."
+  description = "Firestore database ID the API runtime may access."
   type        = string
 }
 

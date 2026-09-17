@@ -2,16 +2,16 @@ import type { LoginToken, User } from "@brainless-chef/database";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createApp } from "../api/app.js";
-import type { AppConfig } from "../api/config.js";
-import type { Mailer } from "../api/services/mail-service.js";
+import { createApp } from "../src/app.js";
+import type { AppConfig } from "../src/config.js";
+import type { Mailer } from "../src/services/mail-service.js";
 import type {
   AuthDatabase,
   LoginTokenCollection,
   StoredLoginToken,
   StoredUser,
   UserCollection,
-} from "../api/services/user-service.js";
+} from "../src/services/user-service.js";
 
 const secret = "Y".repeat(44);
 

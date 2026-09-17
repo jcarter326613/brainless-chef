@@ -89,7 +89,7 @@ jobs:
             docker push "${image}"
           }
 
-          build_if_missing migration apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/migration:${{ steps.image.outputs.tag }}"
+          build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
           build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
       - name: Promote tested development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'production'
@@ -108,7 +108,7 @@ jobs:
             docker buildx imagetools create --prefer-index=false --tag "${production_image}" "${development_image}"
           }
 
-          promote_if_missing migration "${{ steps.image.outputs.tag }}"
+          promote_if_missing api "${{ steps.image.outputs.tag }}"
           promote_if_missing web "${{ steps.image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -132,7 +132,7 @@ jobs:
 
           MIGRATION_JOB="brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate"
           MIGRATION_SERVICE_ACCOUNT="brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-          MIGRATION_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/migration:${RELEASE_IMAGE_TAG}"
+          MIGRATION_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}"
 
           gcloud run jobs deploy "${MIGRATION_JOB}" \
             --project "${GCP_PROJECT_ID}" \
@@ -156,5 +156,6 @@ jobs:
           terraform init -input=false
           terraform apply -input=false -auto-approve \
             -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
+            -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}" \
             -var="mailtrap_api_token=${{ secrets.MAILTRAP_API_TOKEN }}" \
             -var="jwt_secret=${{ secrets.JWT_SECRET }}"

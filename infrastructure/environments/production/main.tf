@@ -25,7 +25,9 @@ module "cloud_run" {
   project_id                        = var.project_id
   region                            = var.region
   web_runtime_service_account_email = "brainless-chef-production@${var.project_id}.iam.gserviceaccount.com"
+  api_runtime_service_account_email = "brainless-chef-production-api@${var.project_id}.iam.gserviceaccount.com"
   web_image                         = var.web_image
+  api_image                         = var.api_image
   firestore_database_id             = "(default)"
   site_origin                       = "https://brainlesschef.com"
   mail_from                         = "no-reply@brainlesschef.com"

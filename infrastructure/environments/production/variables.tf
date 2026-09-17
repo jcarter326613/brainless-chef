@@ -19,6 +19,11 @@ variable "web_image" {
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:latest"
 }
 
+variable "api_image" {
+  type    = string
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:latest"
+}
+
 variable "dns_managed_zone_name" {
   description = "Existing Cloud DNS zone that serves the production website domain."
   type        = string

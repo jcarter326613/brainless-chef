@@ -19,6 +19,11 @@ variable "web_image" {
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/web:latest"
 }
 
+variable "api_image" {
+  type    = string
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/api:latest"
+}
+
 variable "mailtrap_api_token" {
   description = "Mailtrap API token for the development sandbox."
   type        = string

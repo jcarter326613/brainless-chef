@@ -43,7 +43,7 @@ export function createUserService(
   database: AuthDatabase,
   options: { loginTokenTtlMs: number; resendCooldownMs: number },
 ) {
-  const nowIso = () => new Date().toISOString();
+  const nowEpochMs = () => Date.now();
 
   async function findUserByEmail(email: string): Promise<StoredUser | undefined> {
     const matches = await database.collections.users.query({
@@ -60,14 +60,14 @@ export function createUserService(
       if (!user) {
         user = await database.collections.users.create({
           email,
-          createdAt: nowIso(),
-          lastLoginAt: null,
-          lastLoginLinkSentAt: null,
-          schemaVersion: "1.0",
+          createdAtEpoch: nowEpochMs(),
+          lastLoginAtEpoch: null,
+          lastLoginLinkSentAtEpoch: null,
+          schemaVersion: "2.0",
         });
         isNewUser = true;
-      } else if (user.data.lastLoginLinkSentAt !== null) {
-        const elapsedMs = Date.now() - Date.parse(user.data.lastLoginLinkSentAt);
+      } else if (user.data.lastLoginLinkSentAtEpoch !== null) {
+        const elapsedMs = Date.now() - user.data.lastLoginLinkSentAtEpoch;
         if (elapsedMs < options.resendCooldownMs) {
           return {
             result: "throttled",
@@ -79,15 +79,15 @@ export function createUserService(
 
       await database.collections.users.update(user.id, (current) => ({
         ...current,
-        lastLoginLinkSentAt: nowIso(),
+        lastLoginLinkSentAtEpoch: nowEpochMs(),
       }));
 
       const jti = randomUUID();
       await database.collections.loginTokens.set(jti, {
         email,
-        createdAt: nowIso(),
-        expiresAt: new Date(Date.now() + options.loginTokenTtlMs).toISOString(),
-        schemaVersion: "1.0",
+        createdAtEpoch: nowEpochMs(),
+        expiresAtEpoch: Date.now() + options.loginTokenTtlMs,
+        schemaVersion: "2.0",
       });
 
       return { result: isNewUser ? "created" : "ready", jti, user };
@@ -100,7 +100,7 @@ export function createUserService(
           return undefined;
         }
         await collections.loginTokens.delete(jti);
-        if (Date.parse(token.data.expiresAt) <= Date.now()) {
+        if (token.data.expiresAtEpoch <= Date.now()) {
           return undefined;
         }
         return token.data;
@@ -114,7 +114,7 @@ export function createUserService(
     async recordLogin(id: string): Promise<void> {
       await database.collections.users.update(id, (current) => ({
         ...current,
-        lastLoginAt: nowIso(),
+        lastLoginAtEpoch: nowEpochMs(),
       }));
     },
   };

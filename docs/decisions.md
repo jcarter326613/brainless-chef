@@ -56,8 +56,20 @@
 
 ## ADR-010: Colocated web API and Mailtrap magic-link login
 
+**Status:** Superseded.
+
+**Superseded by:** ADR-011 moves the HTTP API into `apps/api` as its own Cloud Run service. The web service serves only the SPA and reverse-proxies `/api`; the API runtime is the sole path to Firestore.
+
 **Decision:** Re-introduce the HTTP API as `apps/web/api`, served under `/api` by the same Express process that serves the built SPA, on the same origin as the site. Send transactional email through the Mailtrap Node SDK (HTTPS API) wrapped in one `MailService` utility called from request handlers. Authenticate users with single-use email magic links: a 15-minute login JWT backed by a `loginTokens` document, exchanged for a 60-day `HttpOnly` session cookie signed with the same HMAC secret. User and login-token documents live in the environment's existing Firestore database. Development uses the Mailtrap sandbox (mail captured, never delivered); production uses the verified `brainlesschef.com` sending domain. Domain verification, DKIM, SPF, and DMARC records are published in Cloud DNS.
 
 **Rationale:** The site already runs one Cloud Run service, so mounting `/api` on it adds an API without a second service, load balancer, or CORS layer, and keeps `HttpOnly` cookies on the same origin. Mailtrap's SDK is a plain HTTPS call, which sidesteps the Google Cloud edge block on outbound destination port 25 entirely (the provider owns the SMTP delivery hop, IP reputation, retries, and DKIM signing). Email is a roughly 100 ms request-scoped side effect, so no queue, worker, or Cloud Run Job is warranted; a failed send returns 503 and the user can request another link. Workspace was rejected as a per-user recurring cost for login-only mail. Magic links avoid storing passwords and match the existing reference implementation.
 
 **Consequences:** The web runtime now holds `roles/datastore.user` scoped to its own Firestore database. Firestore IAM cannot scope collections, so the runtime can technically reach recipe documents; no endpoint reads them today, and any future data-reading endpoint must enforce per-user authorization before shipping. Session tokens are stateless, so there is no server-side revocation; rotate `JWT_SECRET` to invalidate all sessions. `secretmanager.googleapis.com` and a bootstrap-managed `roles/secretmanager.admin` binding for the deployer were added, and the deploy workflow now passes Mailtrap and JWT secrets from GitHub environment secrets.
+
+## ADR-011: Separate API service behind a same-origin web proxy
+
+**Decision:** Move the HTTP API into `apps/api`, deployed as a dedicated public Cloud Run service `brainless-chef-<environment>-api`. The web service remains the public origin: it serves the built SPA and reverse-proxies `/api/*` to the API service URL, preserving request headers, bodies, cookies, and `Set-Cookie` responses. The API runtime holds the environment-scoped `roles/datastore.user` grant and reads the Mailtrap and JWT secrets; the web runtime has no Firestore access and receives no application secrets. The single `api` container image also runs the database-migration Cloud Run Job (`node dist/migrate.js`).
+
+**Rationale:** Separating the API from the SPA gives it an independent permission boundary in Google Cloud — the website cannot touch the database directly, and the API is the only gateway to it. Keeping `/api` on the same public origin as the SPA preserves same-origin `HttpOnly` cookies without CORS or a load balancer. One `api` image serving both the API service and the migration job restores the merge path the migration workflow already assumed.
+
+**Consequences:** Web and API services each scale independently under their own runtime identities. The API's `run.app` URL is publicly invokable (`allUsers`), so its magic-link and session-token authentication is the security boundary; `signin` redirects and cookies still pass through the web origin. The web proxy must pass headers, bodies, and `Set-Cookie` verbatim, and development uses Vite's proxy to forward `/api` to the local API server.
