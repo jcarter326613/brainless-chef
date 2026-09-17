@@ -26,12 +26,19 @@ describe("database", () => {
     firestoreDatabase.createFirestoreDatabase.mockReturnValue(configuredDatabase);
 
     const { database } = await loadDatabase();
-    const { ingredientSchema, loginTokenSchema, recipeSchema, userSchema } = await import(
-      "../src/schemas/index.js"
-    );
+    const { ingredientSchema, loginTokenSchema, migrationTaskSchema, recipeSchema, userSchema } =
+      await import("../src/schemas/index.js");
     const ingredients = {
       path: "ingredients",
       schema: ingredientSchema,
+    };
+    const loginTokens = {
+      path: "login-tokens",
+      schema: loginTokenSchema,
+    };
+    const migrationTasks = {
+      path: "migration-tasks",
+      schema: migrationTaskSchema,
     };
     const recipes = {
       path: "recipes",
@@ -41,23 +48,21 @@ describe("database", () => {
       path: "users",
       schema: userSchema,
     };
-    const loginTokens = {
-      path: "login-tokens",
-      schema: loginTokenSchema,
-    };
     expect(database).toBe(configuredDatabase);
-    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(4);
+    expect(firestoreDatabase.defineCollection).toHaveBeenCalledTimes(5);
     expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(1, ingredients);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, recipes);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, users);
-    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(4, loginTokens);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(2, loginTokens);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(3, migrationTasks);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(4, recipes);
+    expect(firestoreDatabase.defineCollection).toHaveBeenNthCalledWith(5, users);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledTimes(1);
     expect(firestoreDatabase.createFirestoreDatabase).toHaveBeenCalledWith({
       collections: {
         ingredients,
+        loginTokens,
+        migrationTasks,
         recipes,
         users,
-        loginTokens,
       },
       databaseId: "recipe-test",
     });

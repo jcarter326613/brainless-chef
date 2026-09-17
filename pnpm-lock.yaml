@@ -48,6 +48,31 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.0)
 
+  apps/migrate:
+    dependencies:
+      '@brainless-chef/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      express:
+        specifier: ^4.21.2
+        version: 4.22.3(supports-color@7.2.0)
+      zod:
+        specifier: ^4.1.5
+        version: 4.5.4
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.0)
+
   apps/web:
     dependencies:
       express:

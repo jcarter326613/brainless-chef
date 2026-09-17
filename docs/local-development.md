@@ -17,7 +17,7 @@ pnpm dev
 
 This starts Vite at `http://localhost:5173`.
 
-`apps/api` has no local development server. It exists solely as the source for the Cloud Run database-migration container image. Run database migrations by dispatching `Deploy` with `run_migrations` enabled, as described in [`infrastructure.md`](infrastructure.md#deployment).
+`apps/api` and `apps/migrate` have no local development servers. `apps/api` runs as the Cloud Run API gateway; `apps/migrate` is the source for the Cloud Run database-migration service. Database migrations run automatically on every `Deploy`, as described in [`infrastructure.md`](infrastructure.md#deployment).
 
 ## VS Code debugging
 

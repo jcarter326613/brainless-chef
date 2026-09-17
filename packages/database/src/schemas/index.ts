@@ -1,5 +1,6 @@
 export { loginTokenSchema } from "./auth/login-token.js";
 export { userSchema } from "./auth/user.js";
+export { migrationRunStateSchema, migrationTaskSchema } from "./system/migration-task.js";
 export { ingredientSchema } from "./recipe/ingredient.js";
 export { ingredientInputSchema } from "./recipe/ingredient-input.js";
 export {
@@ -28,6 +29,7 @@ export { recipeIngredientSchema, recipeSchema } from "./recipe/recipe.js";
 export { toolSchema } from "./recipe/tool.js";
 export type { LoginToken } from "./auth/login-token.js";
 export type { User } from "./auth/user.js";
+export type { MigrationTask } from "./system/migration-task.js";
 export type { Ingredient } from "./recipe/ingredient.js";
 export type { IngredientInput } from "./recipe/ingredient-input.js";
 export type { CookInput, CookTask } from "./recipe/cook.js";

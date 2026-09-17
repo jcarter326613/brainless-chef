@@ -3,17 +3,10 @@ FROM node:22-alpine AS build
 WORKDIR /workspace
 RUN corepack enable
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY apps/api/package.json apps/api/package.json
-COPY apps/web/package.json apps/web/package.json
-COPY apps/worker/package.json apps/worker/package.json
-COPY packages/database/package.json packages/database/package.json
+COPY . .
 RUN pnpm install --filter @brainless-chef/api... --frozen-lockfile
-
-COPY apps/api apps/api
-COPY packages packages
 RUN pnpm --filter @brainless-chef/api... build \
-   && pnpm --filter @brainless-chef/api deploy --legacy --prod /app
+  && pnpm --filter @brainless-chef/api deploy --legacy --prod /app
 
 FROM node:22-alpine
 

@@ -37,5 +37,9 @@ jobs:
       - run: terraform -chdir=infrastructure/bootstrap validate
       - run: terraform -chdir=infrastructure/environments/development init -backend=false -input=false
       - run: terraform -chdir=infrastructure/environments/development validate
+      - run: terraform -chdir=infrastructure/environments/development/migrate init -backend=false -input=false
+      - run: terraform -chdir=infrastructure/environments/development/migrate validate
       - run: terraform -chdir=infrastructure/environments/production init -backend=false -input=false
       - run: terraform -chdir=infrastructure/environments/production validate
+      - run: terraform -chdir=infrastructure/environments/production/migrate init -backend=false -input=false
+      - run: terraform -chdir=infrastructure/environments/production/migrate validate

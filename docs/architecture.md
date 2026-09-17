@@ -2,13 +2,14 @@
 
 ## Scope
 
-Brainless Chef is a small-volume web product with a Cloud Run web service, a database-migration container image, and a local Qwen prompt experiment:
+Brainless Chef is a small-volume web product with a Cloud Run web service, a Cloud Run API gateway, a Cloud Tasks-triggered migration service, and a local Qwen prompt experiment:
 
 - `apps/web` is a React single-page application built with Vite, served from a Cloud Run container that also reverse-proxies `/api` to the API service.
-- `apps/api` is the HTTP API gateway served from its own Cloud Run container; the same container image also runs the database-migration Cloud Run Job.
+- `apps/api` is the HTTP API gateway served from its own Cloud Run container.
+- `apps/migrate` is a Cloud Run service that runs database migrations; it is invoked by a per-environment Cloud Tasks queue rather than a Cloud Run Job.
 - `apps/worker` is a local Qwen prompt experiment with no Cloud Run or deployment integration.
 
-Each deployed workload is stateless. Application data is stored in Firestore Native Mode; object storage and a dedicated queue service are intentionally absent until a product requirement justifies them.
+Each deployed workload is stateless. Application data is stored in Firestore Native Mode; object storage is intentionally absent until a product requirement justifies it. A Cloud Tasks queue is used only to dispatch migrations: per-task billing avoids the one-minute Cloud Run Job minimum, and the queue serializes dispatches so an environment never runs two migrations concurrently.
 
 Database-using application and migration code access application collections through `packages/database`. That package defines Zod document schemas and optional storage migrations, then configures the connection-owning [`firestore-database`](https://github.com/jcarter326613/firestore-database) facade. The facade validates known fields on every read, query result, and write, and does not expose raw Firestore clients or transactions to application code.
 
@@ -21,7 +22,7 @@ Browser
   -> Firestore
 ```
 
-The release API image, built from `apps/api`, runs as the API Cloud Run service and, with `node dist/migrate.js`, as a dedicated Cloud Run Job for database migrations. The job compares the explicit storage-migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations one document at a time. Document transactions allow unrelated production work to continue while protecting each migrated source document from conflicting writes.
+The release API image, built from `apps/api`, runs as the API Cloud Run service. The release migration image, built from `apps/migrate`, runs as the `brainless-chef-<environment>-migrate` Cloud Run service. A Cloud Tasks HTTP task targets the migrator's `/__migrate` endpoint; the handler compares the explicit storage-migration registry to a Firestore ledger, acquires a fenced lease, and applies pending migrations one document at a time. Document transactions allow unrelated production work to continue while protecting each migrated source document from conflicting writes.
 
 For the web and API services, Cloud Run owns TLS termination, request routing, health management, and horizontal scaling. Each container listens on `PORT` (Cloud Run supplies it, normally `8080`) and must not depend on local filesystem persistence or in-memory session state. The web container serves the built SPA and forwards `/api/*` to the API service; the API container owns the magic-link, session-cookie, and Firestore access granted to that environment.
 
@@ -40,14 +41,14 @@ The web service allows unauthenticated invocation, as does the API service. The 
 - The federated identity is restricted to `jcarter326613/brainless-chef`.
 - CI receives only image-publishing, Cloud Run administration, Terraform-state access, service-usage, and permission to attach the pre-created runtime identities.
 - Web services use dedicated environment runtime service accounts with no Firestore access and no application secrets; they serve the SPA and proxy `/api` only.
-- API services use dedicated environment runtime service accounts with `roles/datastore.user` scoped to their one database; they are the only runtime path to application data.
-- Migration jobs use dedicated environment service accounts with the same one-database IAM boundary. GitHub Actions can create and execute a job as those identities but cannot access Firestore documents itself.
+- Component images use dedicated environment runtime service accounts. API services use `roles/datastore.user` scoped to their one database and are the only runtime path to application data.
+- Migration services use dedicated environment service accounts with the same one-database IAM boundary. GitHub Actions can enqueue a migration task as those identities but cannot access Firestore documents itself.
 - Firestore Security Rules do not govern server-side Firebase Admin SDK access. The IAM condition is the enforced boundary for API and migration identities.
-- Each environment Terraform state owns its database and future database-specific recovery settings. Bootstrap owns the shared runtime identities and IAM policy.
+- Each environment Terraform state owns its database and future database-specific recovery settings. Bootstrap owns the shared runtime identities and IAM policy. A per-environment migrate Terraform stack owns the migrator Cloud Run service, its task queue, and queue IAM, and it applies before the web/API stack so migration code deploys ahead of application code.
 
 ## Cost posture
 
-The Cloud Run web and API services set `min_instance_count` to zero, cap at two instances, use 512 MiB of memory and one vCPU, and explicitly allocate CPU only while serving requests. The trade-off is occasional cold starts.
+The Cloud Run web, API, and migrator services set `min_instance_count` to zero, keep instance counts low, and explicitly allocate CPU only while serving requests. The migrator service scales to zero between migrations, so a migration that completes in seconds bills at sub-minute precision instead of a Cloud Run Job's one-minute minimum; the per-task Cloud Tasks charge is negligible.
 
 Artifact Registry and the versioned Terraform state bucket are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention. These storage resources are not zero-cost: archived state is retained for 30 days, development images expire after 3 days, and the 3 most recent production migration and web versions are retained for rollback.
 

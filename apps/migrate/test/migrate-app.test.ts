@@ -1,0 +1,135 @@
+import type { MigrationTask } from "@brainless-chef/database";
+import type { AddressInfo } from "node:net";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { createMigrateApp, type MigrateAppDatabase } from "../src/migrate-app.js";
+
+class MemoryDatabase implements MigrateAppDatabase {
+  readonly tasks = new Map<string, MigrationTask>();
+  failMigrate = false;
+  migrateCalls = 0;
+
+  collections = {
+    migrationTasks: {
+      get: async (id: string) => {
+        const data = this.tasks.get(id);
+        return data === undefined ? undefined : { data, id };
+      },
+      set: async (id: string, data: MigrationTask) => {
+        this.tasks.set(id, data);
+      },
+    },
+  };
+
+  async migrate() {
+    this.migrateCalls += 1;
+    if (this.failMigrate) {
+      throw new Error("migration crashed");
+    }
+    return { applied: ["202601010000-init"], registryFingerprint: "abc123" };
+  }
+}
+
+function makeConfig() {
+  return { port: 0, firestoreDatabaseId: "test" };
+}
+
+async function startContext() {
+  const database = new MemoryDatabase();
+  const app = createMigrateApp({ config: makeConfig(), database });
+  const server = app.listen(0);
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    database,
+  };
+}
+
+describe("migration server", () => {
+  let context: Awaited<ReturnType<typeof startContext>>;
+
+  beforeEach(async () => {
+    context = await startContext();
+  });
+
+  afterEach(async () => {
+    await context.close();
+  });
+
+  it("returns 404 before any task is recorded", async () => {
+    const response = await fetch(`${context.baseUrl}/__migrate/status/nope`);
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects a missing or invalid request body", async () => {
+    const empty = await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
+
+    const partial = await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "migrate-dev-abc" }),
+    });
+    expect(partial.status).toBe(400);
+  });
+
+  it("runs migrations and records a successful task", async () => {
+    const response = await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "migrate-dev-abc", imageTag: "abc" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      appliedMigrations: ["202601010000-init"],
+      registryFingerprint: "abc123",
+      requestId: "migrate-dev-abc",
+      state: "succeeded",
+    });
+    expect(context.database.migrateCalls).toBe(1);
+
+    const status = await fetch(`${context.baseUrl}/__migrate/status/migrate-dev-abc`);
+    await expect(status.json()).resolves.toMatchObject({ state: "succeeded" });
+  });
+
+  it("does not re-run a task that already reached a terminal or running state", async () => {
+    await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "migrate-dev-abc", imageTag: "abc" }),
+    });
+
+    const replay = await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "migrate-dev-abc", imageTag: "abc" }),
+    });
+
+    expect(replay.status).toBe(200);
+    expect(context.database.migrateCalls).toBe(1);
+  });
+
+  it("records a failed task with the error and returns 500", async () => {
+    context.database.failMigrate = true;
+
+    const response = await fetch(`${context.baseUrl}/__migrate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "migrate-dev-bad", imageTag: "bad" }),
+    });
+
+    expect(response.status).toBe(500);
+    const status = await fetch(`${context.baseUrl}/__migrate/status/migrate-dev-bad`);
+    await expect(status.json()).resolves.toMatchObject({
+      error: "migration crashed",
+      state: "failed",
+    });
+  });
+});

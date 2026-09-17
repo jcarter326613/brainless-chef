@@ -18,11 +18,6 @@ on:
         description: Tested development migration and web image Git SHA. Required for production.
         required: false
         type: string
-      run_migrations:
-        description: Initialize a new database before its first service deployment.
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -90,6 +85,7 @@ jobs:
           }
 
           build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
+          build_if_missing migration apps/migrate/Dockerfile "${IMAGE_REPOSITORY}/development/migration:${{ steps.image.outputs.tag }}"
           build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
       - name: Promote tested development containers
         if: env.DEPLOYMENT_ENVIRONMENT == 'production'
@@ -109,6 +105,7 @@ jobs:
           }
 
           promote_if_missing api "${{ steps.image.outputs.tag }}"
+          promote_if_missing migration "${{ steps.image.outputs.tag }}"
           promote_if_missing web "${{ steps.image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -119,37 +116,72 @@ jobs:
           terraform init -input=false
           terraform apply -input=false -auto-approve \
             -target=google_firestore_database.database
+      - name: Deploy database migrator service
+        env:
+          RELEASE_IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}/migrate
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve \
+            -var="migration_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/migration:${RELEASE_IMAGE_TAG}"
       - name: Run database migrations
-        if: inputs.run_migrations == true
         env:
           RELEASE_IMAGE_TAG: ${{ steps.image.outputs.tag }}
         run: |
-          if [[ "${DEPLOYMENT_ENVIRONMENT}" == "production" ]]; then
-            FIRESTORE_DATABASE_ID="(default)"
-          else
-            FIRESTORE_DATABASE_ID="development"
+          MIGRATION_SERVICE_ACCOUNT="brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+          MIGRATION_TASK="migrate-${DEPLOYMENT_ENVIRONMENT}-${RELEASE_IMAGE_TAG}"
+          MIGRATION_QUEUE="brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate"
+          MIGRATION_SERVICE_URL="$(gcloud run services describe "brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --format='value(status.url)')"
+
+          migrate_status() {
+            curl -sS \
+              -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+              "${MIGRATION_SERVICE_URL}/__migrate/status/${MIGRATION_TASK}" \
+              | jq -r '.state // "missing"'
+          }
+
+          if [[ "$(migrate_status)" == "succeeded" ]]; then
+            echo "${MIGRATION_TASK} already succeeded; skipping enqueue."
+            exit 0
           fi
 
-          MIGRATION_JOB="brainless-chef-${DEPLOYMENT_ENVIRONMENT}-migrate"
-          MIGRATION_SERVICE_ACCOUNT="brainless-${DEPLOYMENT_ENVIRONMENT}-migrator@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-          MIGRATION_IMAGE="${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${RELEASE_IMAGE_TAG}"
+          if ! gcloud tasks create-http-task "${MIGRATION_TASK}" \
+            --project "${GCP_PROJECT_ID}" \
+            --location "${GCP_REGION}" \
+            --queue "${MIGRATION_QUEUE}" \
+            --url "${MIGRATION_SERVICE_URL}/__migrate" \
+            --method POST \
+            --header "Content-Type: application/json" \
+            --body-content "{\"requestId\":\"${MIGRATION_TASK}\",\"imageTag\":\"${RELEASE_IMAGE_TAG}\"}" \
+            --oidc-service-account-email "${MIGRATION_SERVICE_ACCOUNT}" \
+            --oidc-token-audience "${MIGRATION_SERVICE_URL}" \
+            --quiet; then
+            if [[ "$(migrate_status)" == "missing" ]]; then
+              echo "Failed to enqueue ${MIGRATION_TASK}." >&2
+              exit 1
+            fi
+            echo "A migration for ${MIGRATION_TASK} is already running; waiting for it."
+          fi
 
-          gcloud run jobs deploy "${MIGRATION_JOB}" \
-            --project "${GCP_PROJECT_ID}" \
-            --region "${GCP_REGION}" \
-            --image "${MIGRATION_IMAGE}" \
-            --service-account "${MIGRATION_SERVICE_ACCOUNT}" \
-            --set-env-vars "FIRESTORE_DATABASE_ID=${FIRESTORE_DATABASE_ID}" \
-            --command node \
-            --args dist/migrate.js \
-            --tasks 1 \
-            --max-retries 0 \
-            --task-timeout 3600s \
-            --quiet
-          gcloud run jobs execute "${MIGRATION_JOB}" \
-            --project "${GCP_PROJECT_ID}" \
-            --region "${GCP_REGION}" \
-            --wait
+          for _ in $(seq 1 60); do
+            case "$(migrate_status)" in
+              succeeded)
+                echo "Database migration succeeded: ${MIGRATION_TASK}"
+                exit 0
+                ;;
+              failed)
+                echo "Database migration failed: ${MIGRATION_TASK}" >&2
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+
+          echo "Timed out waiting for database migration: ${MIGRATION_TASK}" >&2
+          exit 1
       - name: Apply Terraform
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |

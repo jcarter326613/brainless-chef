@@ -6,6 +6,7 @@ import {
 import {
   ingredientSchema,
   loginTokenSchema,
+  migrationTaskSchema,
   recipeSchema,
   userSchema,
 } from "./schemas/index.js";
@@ -20,6 +21,14 @@ const collections = {
     path: "ingredients",
     schema: ingredientSchema,
   }),
+  loginTokens: defineCollection({
+    path: "login-tokens",
+    schema: loginTokenSchema,
+  }),
+  migrationTasks: defineCollection({
+    path: "migration-tasks",
+    schema: migrationTaskSchema,
+  }),
   recipes: defineCollection({
     path: "recipes",
     schema: recipeSchema,
@@ -27,10 +36,6 @@ const collections = {
   users: defineCollection({
     path: "users",
     schema: userSchema,
-  }),
-  loginTokens: defineCollection({
-    path: "login-tokens",
-    schema: loginTokenSchema,
   }),
 };
 
