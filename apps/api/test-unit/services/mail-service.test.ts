@@ -11,7 +11,7 @@ vi.mock("mailtrap", () => ({
 
 import { MailtrapClient } from "mailtrap";
 
-import { MailService } from "../src/services/mail-service.js";
+import { MailService } from "../../src/services/mail-service.js";
 
 describe("MailService", () => {
   it("creates a Mailtrap client with the token and sandbox flag", () => {

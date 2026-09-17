@@ -1,0 +1,312 @@
+import type { LoginToken, User } from "@brainless-chef/database";
+import type { Request, Response } from "express";
+import { describe, expect, it } from "vitest";
+
+import { AuthController } from "../../src/controllers/auth.js";
+import type { Mailer } from "../../src/services/mail-service.js";
+import { createTokenService } from "../../src/services/token-service.js";
+import {
+  createUserService,
+  type AuthDatabase,
+  type LoginTokenCollection,
+  type UserCollection,
+} from "../../src/services/user-service.js";
+
+const secret = "Y".repeat(44);
+const SESSION_COOKIE_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
+
+class FakeMailer implements Mailer {
+  fail = false;
+  readonly sent: Array<{ loginUrl: string; to: string }> = [];
+
+  async sendLoginLink(options: { to: string; loginUrl: string }): Promise<void> {
+    if (this.fail) {
+      throw new Error("mailer unavailable");
+    }
+    this.sent.push(options);
+  }
+}
+
+class MemoryDatabase implements AuthDatabase {
+  readonly users = new Map<string, User>();
+  readonly loginTokens = new Map<string, LoginToken>();
+  private nextUserId = 1;
+
+  readonly usersCollection: UserCollection = {
+    create: async (data) => {
+      const id = `user-${this.nextUserId++}`;
+      this.users.set(id, data);
+      return { data, id };
+    },
+    get: async (id) => {
+      const data = this.users.get(id);
+      return data === undefined ? undefined : { data, id };
+    },
+    query: async ({ where }) => {
+      const filter = where[0];
+      for (const [id, data] of this.users) {
+        if (data[filter.field] === filter.value) {
+          return [{ data, id }];
+        }
+      }
+      return [];
+    },
+    update: async (id, updater) => {
+      const current = this.users.get(id);
+      if (current === undefined) {
+        throw new Error(`Missing user ${id}`);
+      }
+      const updated = updater(current);
+      this.users.set(id, updated);
+      return updated;
+    },
+  };
+
+  readonly loginTokensCollection: LoginTokenCollection = {
+    delete: async (id) => {
+      this.loginTokens.delete(id);
+    },
+    get: async (id) => {
+      const data = this.loginTokens.get(id);
+      return data === undefined ? undefined : { data, id };
+    },
+    set: async (id, data) => {
+      this.loginTokens.set(id, data);
+    },
+  };
+
+  collections = {
+    loginTokens: this.loginTokensCollection,
+    users: this.usersCollection,
+  };
+
+  async transaction<Result>(
+    operation: (database: {
+      collections: { loginTokens: LoginTokenCollection; users: UserCollection };
+    }) => Promise<Result>,
+  ): Promise<Result> {
+    return operation({ collections: this.collections });
+  }
+}
+
+function makeController() {
+  const database = new MemoryDatabase();
+  const userService = createUserService(database, {
+    loginTokenTtlMs: 15 * 60 * 1000,
+    resendCooldownMs: 60 * 1000,
+  });
+  const tokenService = createTokenService(secret);
+  const mailer = new FakeMailer();
+  const controller = new AuthController({
+    mailer,
+    secureCookies: true,
+    sessionCookieMaxAgeMs: SESSION_COOKIE_MAX_AGE_MS,
+    siteOrigin: "https://example.test",
+    tokenService,
+    userService,
+  });
+  return { controller, database, mailer, tokenService, userService };
+}
+
+class FakeRes {
+  statusCode = 200;
+  body: unknown;
+  setHeaders = new Map<string, string>();
+  cookies: Array<{ name: string; value: string }> = [];
+  redirectLocation: string | undefined;
+
+  status(code: number): this {
+    this.statusCode = code;
+    return this;
+  }
+
+  json(payload: unknown): this {
+    this.body = payload;
+    return this;
+  }
+
+  set(name: string, value: string): this {
+    this.setHeaders.set(name, value);
+    return this;
+  }
+
+  cookie(name: string, value: string): this {
+    this.cookies.push({ name, value });
+    return this;
+  }
+
+  redirect(location: string): this {
+    this.redirectLocation = location;
+    return this;
+  }
+}
+
+function req(partial: Partial<Request>): Request {
+  return partial as unknown as Request;
+}
+
+describe("AuthController", () => {
+  describe("startLogin", () => {
+    it("rejects an invalid email", async () => {
+      const { controller, mailer } = makeController();
+      const res = new FakeRes();
+
+      await controller.startLogin(req({ body: { email: "not-an-email" } }), res as unknown as Response);
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body).toEqual({ error: "invalid_email" });
+      expect(mailer.sent).toHaveLength(0);
+    });
+
+    it("sends a login link and returns the normalized email", async () => {
+      const { controller, mailer } = makeController();
+      const res = new FakeRes();
+
+      await controller.startLogin(req({ body: { email: "NEW@Example.com" } }), res as unknown as Response);
+
+      expect(res.statusCode).toBe(202);
+      expect(res.body).toEqual({ email: "new@example.com" });
+      expect(mailer.sent).toHaveLength(1);
+      expect(mailer.sent[0].to).toBe("new@example.com");
+      expect(mailer.sent[0].loginUrl).toMatch(
+        /^https:\/\/example\.test\/api\/auth\/verify-login\?token=[\w.-]+$/,
+      );
+    });
+
+    it("throttles repeat requests and sets Retry-After", async () => {
+      const { controller } = makeController();
+      const first = new FakeRes();
+      await controller.startLogin(req({ body: { email: "a@example.com" } }), first as unknown as Response);
+      expect(first.statusCode).toBe(202);
+
+      const second = new FakeRes();
+      await controller.startLogin(req({ body: { email: "a@example.com" } }), second as unknown as Response);
+
+      expect(second.statusCode).toBe(429);
+      expect(second.setHeaders.get("Retry-After")).toBe("60");
+      expect(second.body).toMatchObject({ error: "login_link_throttled" });
+    });
+
+    it("returns 503 when the mailer fails", async () => {
+      const { controller, mailer } = makeController();
+      mailer.fail = true;
+      const res = new FakeRes();
+
+      await controller.startLogin(req({ body: { email: "a@example.com" } }), res as unknown as Response);
+
+      expect(res.statusCode).toBe(503);
+      expect(res.body).toEqual({ error: "email_unavailable" });
+    });
+  });
+
+  describe("verifyLogin", () => {
+    it("redirects with signin=invalid when no token is present", async () => {
+      const { controller } = makeController();
+      const res = new FakeRes();
+
+      await controller.verifyLogin(req({ query: {} }), res as unknown as Response);
+
+      expect(res.redirectLocation).toBe("https://example.test/?signin=invalid");
+    });
+
+    it("redirects with signin=expired for an invalid token", async () => {
+      const { controller, tokenService } = makeController();
+      const valid = tokenService.signLoginToken({
+        email: "a@example.com",
+        jti: "missing-jti",
+        sub: "user-1",
+      });
+      const res = new FakeRes();
+
+      await controller.verifyLogin(req({ query: { token: valid } }), res as unknown as Response);
+
+      expect(res.redirectLocation).toBe("https://example.test/?signin=expired");
+    });
+
+    it("signs the user in and sets the session cookie", async () => {
+      const { controller, tokenService, userService } = makeController();
+      const prepared = await userService.prepareLoginLink("a@example.com");
+      const loginToken = tokenService.signLoginToken({
+        email: "a@example.com",
+        jti: prepared.jti,
+        sub: prepared.user.id,
+      });
+      const res = new FakeRes();
+
+      await controller.verifyLogin(req({ query: { token: loginToken } }), res as unknown as Response);
+
+      expect(res.redirectLocation).toBe("https://example.test");
+      expect(res.cookies).toHaveLength(1);
+      expect(res.cookies[0].name).toBe("session");
+      expect(res.cookies[0].value).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
+    });
+
+    it("redirects with signin=expired on token replay", async () => {
+      const { controller, tokenService, userService } = makeController();
+      const prepared = await userService.prepareLoginLink("a@example.com");
+      const loginToken = tokenService.signLoginToken({
+        email: "a@example.com",
+        jti: prepared.jti,
+        sub: prepared.user.id,
+      });
+      const first = new FakeRes();
+      await controller.verifyLogin(req({ query: { token: loginToken } }), first as unknown as Response);
+      expect(first.redirectLocation).toBe("https://example.test");
+
+      const replay = new FakeRes();
+      await controller.verifyLogin(req({ query: { token: loginToken } }), replay as unknown as Response);
+
+      expect(replay.redirectLocation).toBe("https://example.test/?signin=expired");
+    });
+  });
+
+  describe("me", () => {
+    it("reports no user without a session cookie", async () => {
+      const { controller } = makeController();
+      const res = new FakeRes();
+
+      await controller.me(req({ cookies: {} }), res as unknown as Response);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ user: null });
+    });
+
+    it("returns the current user for a valid session", async () => {
+      const { controller, tokenService, userService } = makeController();
+      const prepared = await userService.prepareLoginLink("a@example.com");
+      const loginToken = tokenService.signLoginToken({
+        email: "a@example.com",
+        jti: prepared.jti,
+        sub: prepared.user.id,
+      });
+      const loginRes = new FakeRes();
+      await controller.verifyLogin(req({ query: { token: loginToken } }), loginRes as unknown as Response);
+      const session = loginRes.cookies[0].value;
+
+      const res = new FakeRes();
+      await controller.me(req({ cookies: { session } }), res as unknown as Response);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ user: { email: "a@example.com", id: prepared.user.id } });
+    });
+
+    it("reports no user for an invalid session", async () => {
+      const { controller } = makeController();
+      const res = new FakeRes();
+
+      await controller.me(req({ cookies: { session: "garbage" } }), res as unknown as Response);
+
+      expect(res.body).toEqual({ user: null });
+    });
+
+    it("reports no user when the session user no longer exists", async () => {
+      const { controller, tokenService } = makeController();
+      const session = tokenService.signSessionToken({ sub: "ghost-user" });
+      const res = new FakeRes();
+
+      await controller.me(req({ cookies: { session } }), res as unknown as Response);
+
+      expect(res.body).toEqual({ user: null });
+    });
+  });
+});
