@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { AuthController } from "../../src/controllers/auth.js";
 import type { Mailer } from "../../src/services/mail-service.js";
-import { TokenService } from "../../src/services/token-service.js";
+import {
+  LOGIN_TOKEN_TTL_MS,
+  SESSION_TTL_MS,
+  TokenService,
+} from "../../src/services/token-service.js";
 import {
   type AuthDatabase,
   type LoginTokenCollection,
@@ -13,7 +17,6 @@ import {
 } from "../../src/services/user-service.js";
 
 const secret = "Y".repeat(44);
-const SESSION_COOKIE_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 
 class FakeMailer implements Mailer {
   fail = false;
@@ -93,7 +96,7 @@ class MemoryDatabase implements AuthDatabase {
 function makeController() {
   const database = new MemoryDatabase();
   const userService = new UserService(database, {
-    loginTokenTtlMs: 15 * 60 * 1000,
+    loginTokenTtlMs: LOGIN_TOKEN_TTL_MS,
     resendCooldownMs: 60 * 1000,
   });
   const tokenService = new TokenService(secret);
@@ -101,7 +104,7 @@ function makeController() {
   const controller = new AuthController({
     mailer,
     secureCookies: true,
-    sessionCookieMaxAgeMs: SESSION_COOKIE_MAX_AGE_MS,
+    sessionCookieMaxAgeMs: SESSION_TTL_MS,
     siteOrigin: "https://example.test",
     tokenService,
     userService,

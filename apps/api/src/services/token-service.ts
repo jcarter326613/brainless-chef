@@ -23,13 +23,21 @@ export class TokenService {
   private readonly verifySession: TokenVerifier;
 
   constructor(secret: string) {
-    this.signLogin = createSigner({ key: secret, algorithm: "HS256", expiresIn: "15m" }) as TokenSigner;
+    this.signLogin = createSigner({
+      key: secret,
+      algorithm: "HS256",
+      expiresIn: LOGIN_TOKEN_TTL_MS,
+    }) as TokenSigner;
     this.verifyLogin = createVerifier({
       key: secret,
       algorithms: ["HS256"],
       allowedAud: "login",
     }) as TokenVerifier;
-    this.signSession = createSigner({ key: secret, algorithm: "HS256", expiresIn: "60d" }) as TokenSigner;
+    this.signSession = createSigner({
+      key: secret,
+      algorithm: "HS256",
+      expiresIn: SESSION_TTL_MS,
+    }) as TokenSigner;
     this.verifySession = createVerifier({
       key: secret,
       algorithms: ["HS256"],

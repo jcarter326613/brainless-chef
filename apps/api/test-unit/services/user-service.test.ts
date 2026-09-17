@@ -1,6 +1,7 @@
 import type { LoginToken, User } from "@brainless-chef/database";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LOGIN_TOKEN_TTL_MS } from "../../src/services/token-service.js";
 import {
   type AuthDatabase,
   type LoginTokenCollection,
@@ -8,7 +9,6 @@ import {
   UserService,
 } from "../../src/services/user-service.js";
 
-const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const EPOCH = Date.parse("2026-01-01T00:00:00Z");
 

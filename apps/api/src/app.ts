@@ -4,12 +4,14 @@ import express from "express";
 import type { AppConfig } from "./config/config.js";
 import { createAuthRouter } from "./routes/auth.js";
 import type { Mailer } from "./services/mail-service.js";
-import { TokenService } from "./services/token-service.js";
+import {
+  LOGIN_TOKEN_TTL_MS,
+  SESSION_TTL_MS,
+  TokenService,
+} from "./services/token-service.js";
 import { UserService, type AuthDatabase } from "./services/user-service.js";
 
-export const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
 export const RESEND_COOLDOWN_MS = 60 * 1000;
-export const SESSION_COOKIE_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 
 export interface AppOptions {
   config: AppConfig;
@@ -39,7 +41,7 @@ export function createApp(options: AppOptions) {
     createAuthRouter({
       mailer: options.mailer,
       secureCookies: options.config.secureCookies,
-      sessionCookieMaxAgeMs: SESSION_COOKIE_MAX_AGE_MS,
+      sessionCookieMaxAgeMs: SESSION_TTL_MS,
       siteOrigin: options.config.siteOrigin,
       tokenService,
       userService,
