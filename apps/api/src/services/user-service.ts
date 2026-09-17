@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { LoginToken, User } from "@brainless-chef/database";
 
 export interface StoredUser {
@@ -15,16 +13,16 @@ export interface StoredLoginToken {
 export interface UserCollection {
   create(data: User): Promise<StoredUser>;
   get(id: string): Promise<StoredUser | undefined>;
+  patch(id: string, updater: (current: User) => Partial<User>): Promise<void>;
   query(options: {
     where: ReadonlyArray<{ field: "email"; operator: "=="; value: string }>;
   }): Promise<StoredUser[]>;
-  update(id: string, updater: (current: User) => User): Promise<User>;
 }
 
 export interface LoginTokenCollection {
+  create(data: LoginToken): Promise<StoredLoginToken>;
   delete(id: string): Promise<void>;
   get(id: string): Promise<StoredLoginToken | undefined>;
-  set(id: string, data: LoginToken): Promise<void>;
 }
 
 export interface AuthDatabase {
@@ -79,18 +77,17 @@ export class UserService {
       }
     }
 
-    await this.database.collections.users.update(user.id, (current) => ({
-      ...current,
+    await this.database.collections.users.patch(user.id, () => ({
       lastLoginLinkSentAtEpoch: this.nowEpochMs(),
     }));
 
-    const jti = randomUUID();
-    await this.database.collections.loginTokens.set(jti, {
+    const token = await this.database.collections.loginTokens.create({
       email,
       createdAtEpoch: this.nowEpochMs(),
       expiresAtEpoch: Date.now() + this.loginTokenTtlMs,
       schemaVersion: "2.0",
     });
+    const jti = token.id;
 
     return { result: isNewUser ? "created" : "ready", jti, user };
   }
@@ -114,8 +111,7 @@ export class UserService {
   }
 
   async recordLogin(id: string): Promise<void> {
-    await this.database.collections.users.update(id, (current) => ({
-      ...current,
+    await this.database.collections.users.patch(id, () => ({
       lastLoginAtEpoch: this.nowEpochMs(),
     }));
   }

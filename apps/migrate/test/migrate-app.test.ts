@@ -8,15 +8,38 @@ class MemoryDatabase implements MigrateAppDatabase {
   readonly tasks = new Map<string, MigrationTask>();
   failMigrate = false;
   migrateCalls = 0;
+  private nextTaskId = 1;
 
   collections = {
     migrationTasks: {
-      get: async (id: string) => {
-        const data = this.tasks.get(id);
-        return data === undefined ? undefined : { data, id };
-      },
-      set: async (id: string, data: MigrationTask) => {
+      create: async (data: MigrationTask) => {
+        const id = `task-${this.nextTaskId++}`;
         this.tasks.set(id, data);
+        return { data, id };
+      },
+      patch: async (
+        id: string,
+        updater: (current: MigrationTask) => Partial<MigrationTask>,
+      ) => {
+        const current = this.tasks.get(id);
+        if (current === undefined) {
+          throw new Error(`Missing task ${id}`);
+        }
+        this.tasks.set(id, { ...current, ...updater(current) });
+      },
+      query: async ({
+        where,
+      }: {
+        where: ReadonlyArray<{
+          field: "requestId";
+          operator: "==";
+          value: string;
+        }>;
+      }) => {
+        const filter = where[0];
+        return [...this.tasks.entries()]
+          .filter(([, data]) => data[filter.field] === filter.value)
+          .map(([id, data]) => ({ data, id }));
       },
     },
   };

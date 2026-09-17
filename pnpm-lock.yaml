@@ -144,8 +144,8 @@ importers:
   packages/database:
     dependencies:
       firestore-database:
-        specifier: ^0.1.1
-        version: 0.1.1(supports-color@7.2.0)
+        specifier: ^0.2.0
+        version: 0.2.0(supports-color@7.2.0)
       zod:
         specifier: ^4.1.5
         version: 4.5.4
@@ -2092,8 +2092,8 @@ packages:
     resolution: {integrity: sha512-rbuCrJvYRwqBqvbccMS8fj/x2zsaMisdf5RQbRzQzr14Rbq9r2UlpuBHqWAwrO6c9dIRF56xF/xoepXsD5yDuQ==}
     engines: {node: '>=18'}
 
-  firestore-database@0.1.1:
-    resolution: {integrity: sha512-OlUOAmRSRnnwGdRJ7616PBEprWuLAX2GjoX89Hu8+ZCAYgNwBZZ6ujhHhPzD8fGLQnC3VIc2XxRTk0PIQWLgQg==}
+  firestore-database@0.2.0:
+    resolution: {integrity: sha512-gFSBeG3+8yEPI717fpUUjNl5tTaAYptNpGBJQCslu6Z7ihRUCJcVV/mhK7yfG60sM854p+t5grp2CKjRllaFCA==}
     engines: {node: '>=22'}
 
   follow-redirects@1.16.0:
@@ -5238,7 +5238,7 @@ snapshots:
       - encoding
       - supports-color
 
-  firestore-database@0.1.1(supports-color@7.2.0):
+  firestore-database@0.2.0(supports-color@7.2.0):
     dependencies:
       firebase-admin: 13.10.0(supports-color@7.2.0)
       zod: 4.5.4

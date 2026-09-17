@@ -31,6 +31,7 @@ class MemoryDatabase implements AuthDatabase {
   readonly users = new Map<string, User>();
   readonly loginTokens = new Map<string, LoginToken>();
   private nextUserId = 1;
+  private nextTokenId = 1;
 
   readonly usersCollection: UserCollection = {
     create: async (data) => {
@@ -51,27 +52,27 @@ class MemoryDatabase implements AuthDatabase {
       }
       return [];
     },
-    update: async (id, updater) => {
+    patch: async (id, updater) => {
       const current = this.users.get(id);
       if (current === undefined) {
         throw new Error(`Missing user ${id}`);
       }
-      const updated = updater(current);
-      this.users.set(id, updated);
-      return updated;
+      this.users.set(id, { ...current, ...updater(current) });
     },
   };
 
   readonly loginTokensCollection: LoginTokenCollection = {
+    create: async (data) => {
+      const id = `token-${this.nextTokenId++}`;
+      this.loginTokens.set(id, data);
+      return { data, id };
+    },
     delete: async (id) => {
       this.loginTokens.delete(id);
     },
     get: async (id) => {
       const data = this.loginTokens.get(id);
       return data === undefined ? undefined : { data, id };
-    },
-    set: async (id, data) => {
-      this.loginTokens.set(id, data);
     },
   };
 

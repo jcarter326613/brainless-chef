@@ -13,8 +13,18 @@ export interface MigrateAppDatabase {
   migrate(): Promise<{ applied: string[]; registryFingerprint: string }>;
   collections: {
     migrationTasks: {
-      get(id: string): Promise<{ data: MigrationTask; id: string } | undefined>;
-      set(id: string, data: MigrationTask): Promise<void>;
+      create(data: MigrationTask): Promise<{ data: MigrationTask; id: string }>;
+      patch(
+        id: string,
+        updater: (current: MigrationTask) => Partial<MigrationTask>,
+      ): Promise<void>;
+      query(options: {
+        where: ReadonlyArray<{
+          field: "requestId";
+          operator: "==";
+          value: string;
+        }>;
+      }): Promise<Array<{ data: MigrationTask; id: string }>>;
     };
   };
 }
@@ -38,6 +48,16 @@ function toRecord(
   };
 }
 
+async function findTask(
+  database: MigrateAppDatabase,
+  requestId: string,
+): Promise<{ data: MigrationTask; id: string } | undefined> {
+  const matches = await database.collections.migrationTasks.query({
+    where: [{ field: "requestId", operator: "==", value: requestId }],
+  });
+  return matches[0];
+}
+
 export function createMigrateApp(options: MigrateAppOptions) {
   const app = express();
 
@@ -45,7 +65,7 @@ export function createMigrateApp(options: MigrateAppOptions) {
   app.use(express.json({ limit: "1kb" }));
 
   app.get("/__migrate/status/:requestId", async (req, res) => {
-    const record = await options.database.collections.migrationTasks.get(req.params.requestId);
+    const record = await findTask(options.database, req.params.requestId);
     if (!record) {
       res.status(404).json({ error: "not_found" });
       return;
@@ -61,7 +81,7 @@ export function createMigrateApp(options: MigrateAppOptions) {
     }
 
     const { requestId, imageTag } = parsed.data;
-    const existing = await options.database.collections.migrationTasks.get(requestId);
+    const existing = await findTask(options.database, requestId);
     if (existing) {
       // Cloud Tasks delivers at least once. A task never re-runs after being
       // observed; a repeated delivery must not start a second migration.
@@ -69,23 +89,18 @@ export function createMigrateApp(options: MigrateAppOptions) {
       return;
     }
 
-    await options.database.collections.migrationTasks.set(
-      requestId,
+    const task = await options.database.collections.migrationTasks.create(
       toRecord({ requestId, imageTag, state: "running", appliedMigrations: [], registryFingerprint: "" }),
     );
 
     try {
       const result = await options.database.migrate();
-      await options.database.collections.migrationTasks.set(
-        requestId,
-        toRecord({
-          requestId,
-          imageTag,
-          state: "succeeded",
-          appliedMigrations: result.applied,
-          registryFingerprint: result.registryFingerprint,
-        }),
-      );
+      await options.database.collections.migrationTasks.patch(task.id, () => ({
+        appliedMigrations: result.applied,
+        registryFingerprint: result.registryFingerprint,
+        state: "succeeded",
+        updatedAtEpoch: Date.now(),
+      }));
       res.json({
         state: "succeeded" as const,
         requestId,
@@ -93,17 +108,13 @@ export function createMigrateApp(options: MigrateAppOptions) {
         registryFingerprint: result.registryFingerprint,
       });
     } catch (error) {
-      await options.database.collections.migrationTasks.set(
-        requestId,
-        toRecord({
-          requestId,
-          imageTag,
-          state: "failed",
-          appliedMigrations: [],
-          registryFingerprint: "",
-          error: error instanceof Error ? error.message : "unknown migration failure",
-        }),
-      );
+      await options.database.collections.migrationTasks.patch(task.id, () => ({
+        appliedMigrations: [],
+        error: error instanceof Error ? error.message : "unknown migration failure",
+        registryFingerprint: "",
+        state: "failed",
+        updatedAtEpoch: Date.now(),
+      }));
       // Non-2xx so Cloud Tasks records a failed attempt; retries are disabled.
       res.status(500).json({ error: "migration_failed" });
     }

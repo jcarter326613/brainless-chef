@@ -8,3 +8,6 @@ allowBuilds:
   node-llama-cpp: true
   puppeteer: true
   protobufjs: true
+
+minimumReleaseAgeExclude:
+  - firestore-database@0.2.0
