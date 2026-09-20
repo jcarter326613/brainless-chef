@@ -153,15 +153,30 @@ jobs:
             --project "${GCP_PROJECT_ID}" \
             --region "${GCP_REGION}" \
             --format='value(status.url)')"
+          MIGRATION_CALLER_TOKEN="$(gcloud auth print-identity-token --audiences="${MIGRATION_SERVICE_URL}")"
 
           migrate_status() {
-            curl -sS \
-              -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-              "${MIGRATION_SERVICE_URL}/__migrate/status/${MIGRATION_TASK}" \
-              | jq -r '.state // "missing"'
+            local response status_code body
+            response="$(curl -sS -w '\n%{http_code}' \
+              -H "Authorization: Bearer ${MIGRATION_CALLER_TOKEN}" \
+              "${MIGRATION_SERVICE_URL}/__migrate/status/${MIGRATION_TASK}")"
+            status_code="${response##*$'\n'}"
+            body="${response%$'\n'"${status_code}"}"
+
+            if [[ "${status_code}" == "404" ]]; then
+              echo "missing"
+              return
+            fi
+            if [[ "${status_code}" != "200" ]]; then
+              echo "Migration status request failed with HTTP ${status_code}: ${body}" >&2
+              return 1
+            fi
+
+            jq -er '.state' <<< "${body}"
           }
 
-          if [[ "$(migrate_status)" == "succeeded" ]]; then
+          migration_status="$(migrate_status)" || exit 1
+          if [[ "${migration_status}" == "succeeded" ]]; then
             echo "${MIGRATION_TASK} already succeeded; skipping enqueue."
             exit 0
           fi
@@ -177,7 +192,8 @@ jobs:
             --oidc-service-account-email "${MIGRATION_SERVICE_ACCOUNT}" \
             --oidc-token-audience "${MIGRATION_SERVICE_URL}" \
             --quiet; then
-            if [[ "$(migrate_status)" == "missing" ]]; then
+            migration_status="$(migrate_status)" || exit 1
+            if [[ "${migration_status}" == "missing" ]]; then
               echo "Failed to enqueue ${MIGRATION_TASK}." >&2
               exit 1
             fi
@@ -185,7 +201,8 @@ jobs:
           fi
 
           for _ in $(seq 1 60); do
-            case "$(migrate_status)" in
+            migration_status="$(migrate_status)" || exit 1
+            case "${migration_status}" in
               succeeded)
                 echo "Database migration succeeded: ${MIGRATION_TASK}"
                 exit 0
