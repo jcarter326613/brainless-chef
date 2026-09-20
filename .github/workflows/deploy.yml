@@ -219,3 +219,12 @@ jobs:
           terraform apply -input=false -auto-approve \
             -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
             -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}"
+      - name: Print deployed website URL
+        working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
+        run: |
+          if [[ "${DEPLOYMENT_ENVIRONMENT}" == "production" ]]; then
+            website_url="$(terraform output -raw website_domain_url)"
+          else
+            website_url="$(terraform output -raw web_url)"
+          fi
+          echo "Deployed website: ${website_url}"
