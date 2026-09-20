@@ -34,9 +34,9 @@
 
 ## ADR-006: Production custom domain through Cloud Run mapping
 
-**Decision:** Map `brainlesschef.com` directly to the production web service and `dev.brainlesschef.com` to the development web service through Cloud Run domain mapping, and publish their records in the existing Cloud DNS zone.
+**Decision:** Map `brainlesschef.com` directly to the production web service through Cloud Run domain mapping and publish its records in the existing Cloud DNS zone. Development uses its generated Cloud Run URL.
 
-**Rationale:** This preserves scale-to-zero Cloud Run pricing and avoids a load balancer or reserved IP. Cloud Run manages the TLS certificate. Domain mapping is a Preview feature with documented limitations, so revisit this decision if production reliability or advanced edge controls require a GA load-balancer-based approach.
+**Rationale:** This preserves scale-to-zero Cloud Run pricing and avoids a load balancer or reserved IP. Keeping development outside the production DNS zone prevents development credentials from changing production DNS records. Cloud Run manages the production TLS certificate. Domain mapping is a Preview feature with documented limitations, so revisit this decision if production reliability or advanced edge controls require a GA load-balancer-based approach.
 
 ## ADR-007: Firestore databases isolated by migration IAM
 
@@ -82,7 +82,7 @@
 
 **Status:** Adopted.
 
-**Decision:** Move database migrations out of the API container image and out of the Cloud Run Job runner into a dedicated `apps/migrate` application. It ships its own container image (`.../migration:<sha>`) and runs as a Cloud Run service `brainless-chef-<environment>-migrate` whose `/__migrate` endpoint is invoked by a per-environment Cloud Tasks queue. The queue is configured with `max_concurrent_dispatches = 1` and a single attempt (no retries). Each environment gets its own Terraform migrate stack (`infrastructure/environments/<environment>/migrate`) that owns the migrator service, the queue, and their IAM; the deploy workflow applies that stack before the web/API stack, and enqueues a task then polls the migrator's `/__migrate/status/<task>` endpoint until the run reaches a terminal state.
+**Decision:** Move database migrations out of the API container image and out of the Cloud Run Job runner into a dedicated `apps/migrate` application. It ships its own container image (`.../migration:<sha>`) and runs as a Cloud Run service `brainless-chef-<environment>-migrate` whose `/__migrate` endpoint is invoked by a per-environment Cloud Tasks queue. The queue is configured with `max_concurrent_dispatches = 1` and a single attempt (no retries). Bootstrap owns queues and IAM policies; each environment gets a dedicated migrate Terraform stack (`infrastructure/environments/<environment>/migrate`) that owns the migrator service. The deploy workflow applies that stack before the web/API stack, then enqueues a task and polls the migrator's `/__migrate/status/<task>` endpoint until the run reaches a terminal state.
 
 **Rationale:** Migrations typically finish in seconds, but a Cloud Run Job bills a one-minute minimum; a scale-to-zero Cloud Run service bills at 100 ms precision and Cloud Tasks bills per task, eliminating the floor for fast migrations. Splitting `apps/migrate` from `apps/api` gives the migration image an independent artifact and lifecycle (the workflow already assumed a `migration` image path it never built). A per-environment migrate Terraform stack guarantees the migrator deploys ahead of the API by construction, and the queue's single-attempt, single-dispatch policy keeps forward-only semantics: the migration runner's existing fenced lease remains the backstop against concurrent runs in the same environment.
 

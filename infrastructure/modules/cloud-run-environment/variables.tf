@@ -39,8 +39,9 @@ variable "firestore_database_id" {
 }
 
 variable "site_origin" {
-  description = "Public origin of this environment's web service, used to build absolute login-link URLs."
+  description = "Public origin of this environment's web service, used to build absolute login-link URLs. Defaults to the generated Cloud Run URL."
   type        = string
+  default     = null
 }
 
 variable "mail_from" {

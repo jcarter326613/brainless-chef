@@ -16,22 +16,10 @@ variable "firestore_location_id" {
 
 variable "web_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/web:latest"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef-development/web:latest"
 }
 
 variable "api_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/development/api:latest"
-}
-
-variable "dns_managed_zone_name" {
-  description = "Existing Cloud DNS zone that serves brainlesschef.com."
-  type        = string
-  default     = "brainlesschef-com"
-}
-
-variable "website_domain" {
-  description = "Development subdomain mapped to the development web service."
-  type        = string
-  default     = "dev.brainlesschef.com"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef-development/api:latest"
 }

@@ -28,7 +28,7 @@ For the web and API services, Cloud Run owns TLS termination, request routing, h
 
 ## Environment boundaries
 
-Development and production have separate Cloud Run web services, Firestore databases, and Terraform state prefixes. Both currently live in Google Cloud project `brainlesschef`, region `us-east1`; separate projects can be introduced later if stronger organizational isolation becomes necessary.
+Development and production have separate Cloud Run web services, Firestore databases, Terraform state buckets, Artifact Registry repositories, and GitHub deployer identities. Both currently live in Google Cloud project `brainlesschef`, region `us-east1`; project-scoped deployment permissions mean separate projects are still required for complete authorization isolation.
 
 Only production maps `brainlesschef.com` to the production web service. Development remains available only through its generated `run.app` URL. Cloud Run domain mapping terminates TLS directly at Cloud Run, without a load balancer, and Cloud DNS publishes the generated apex records.
 
@@ -37,19 +37,19 @@ The web service allows unauthenticated invocation, as does the API service. The 
 ## Identity boundaries
 
 - A human administrator applies `infrastructure/bootstrap` one time with elevated project access.
-- GitHub Actions exchanges its GitHub-issued OIDC token for the `brainless-chef-deployer` service account. No JSON key is created or stored.
-- The federated identity is restricted to `jcarter326613/brainless-chef`.
-- CI receives only image-publishing, Cloud Run administration, Terraform-state access, service-usage, and permission to attach the pre-created runtime identities.
+- GitHub Actions exchanges its GitHub-issued OIDC token for an environment-specific deployer service account. No JSON key is created or stored.
+- The development federation accepts repository branch refs only when the job uses the `development` GitHub Environment. The production federation accepts only `refs/heads/main` with the protected `production` Environment.
+- CI receives only image-publishing, Cloud Run development, Terraform-state access, service-usage, and permission to attach the pre-created runtime identities. Bootstrap alone writes IAM policies.
 - Web services use dedicated environment runtime service accounts with no Firestore access and no application secrets; they serve the SPA and proxy `/api` only.
 - Component images use dedicated environment runtime service accounts. API services use `roles/datastore.user` scoped to their one database and are the only runtime path to application data.
 - Migration services use dedicated environment service accounts with the same one-database IAM boundary. GitHub Actions can enqueue a migration task as those identities but cannot access Firestore documents itself.
 - Firestore Security Rules do not govern server-side Firebase Admin SDK access. The IAM condition is the enforced boundary for API and migration identities.
-- Each environment Terraform state owns its database and future database-specific recovery settings. Bootstrap owns the shared runtime identities and IAM policy. A per-environment migrate Terraform stack owns the migrator Cloud Run service, its task queue, and queue IAM, and it applies before the web/API stack so migration code deploys ahead of application code.
+- Each environment Terraform state owns its database and future database-specific recovery settings. Bootstrap owns runtime identities, IAM policy, and migration queues. A per-environment migrate Terraform stack owns only the migrator Cloud Run service and applies before the web/API stack so migration code deploys ahead of application code.
 
 ## Cost posture
 
 The Cloud Run web, API, and migrator services set `min_instance_count` to zero, keep instance counts low, and explicitly allocate CPU only while serving requests. The migrator service scales to zero between migrations, so a migration that completes in seconds bills at sub-minute precision instead of a Cloud Run Job's one-minute minimum; the per-task Cloud Tasks charge is negligible.
 
-Artifact Registry and the versioned Terraform state bucket are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention. These storage resources are not zero-cost: archived state is retained for 30 days, development images expire after 3 days, and the 3 most recent production migration and web versions are retained for rollback.
+Artifact Registry and the versioned Terraform state buckets are regional in `us-east1`. State remains private through uniform bucket-level access and enforced public-access prevention. Archived state is retained for 30 days.
 
 Firestore has no idle compute cost. Production uses the default database and receives the project's one Firestore free quota; the named development database is billed for its actual operations and stored data.

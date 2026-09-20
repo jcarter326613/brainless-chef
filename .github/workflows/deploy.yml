@@ -30,7 +30,6 @@ concurrency:
 env:
   GCP_PROJECT_ID: brainlesschef
   GCP_REGION: us-east1
-  IMAGE_REPOSITORY: us-east1-docker.pkg.dev/brainlesschef/brainless-chef
 
 jobs:
   validate:
@@ -38,7 +37,7 @@ jobs:
 
   deploy:
     needs: validate
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.environment != 'production' || github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment || 'development' }}
     env:
@@ -50,16 +49,26 @@ jobs:
         run: |
           if [[ "${DEPLOYMENT_ENVIRONMENT}" == "production" ]]; then
             if [[ ! "${REQUESTED_IMAGE_TAG}" =~ ^[0-9a-f]{40}$ ]]; then
-              echo "Production deployments require image_tag to be a full, tested Git SHA." >&2
+              echo "Production deployments require image_tag to be a full Git SHA." >&2
               exit 1
             fi
             echo "tag=${REQUESTED_IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
           else
             echo "tag=${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
           fi
+          echo "repository=${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/brainless-chef-${DEPLOYMENT_ENVIRONMENT}" >> "${GITHUB_OUTPUT}"
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.image.outputs.tag }}
+          fetch-depth: 0
+      - name: Verify production release commit
+        if: env.DEPLOYMENT_ENVIRONMENT == 'production'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${{ steps.image.outputs.tag }}" origin/main; then
+            echo "Production image_tag must identify a commit reachable from main." >&2
+            exit 1
+          fi
       - id: auth
         uses: google-github-actions/auth@v2
         with:
@@ -67,8 +76,7 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOYER_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
       - run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
-      - name: Build and publish development containers
-        if: env.DEPLOYMENT_ENVIRONMENT == 'development'
+      - name: Build and publish containers
         run: |
           build_if_missing() {
             component="$1"
@@ -84,29 +92,9 @@ jobs:
             docker push "${image}"
           }
 
-          build_if_missing api apps/api/Dockerfile "${IMAGE_REPOSITORY}/development/api:${{ steps.image.outputs.tag }}"
-          build_if_missing migration apps/migrate/Dockerfile "${IMAGE_REPOSITORY}/development/migration:${{ steps.image.outputs.tag }}"
-          build_if_missing web apps/web/Dockerfile "${IMAGE_REPOSITORY}/development/web:${{ steps.image.outputs.tag }}"
-      - name: Promote tested development containers
-        if: env.DEPLOYMENT_ENVIRONMENT == 'production'
-        run: |
-          promote_if_missing() {
-            component="$1"
-            tag="$2"
-            production_image="${IMAGE_REPOSITORY}/production/${component}:${tag}"
-
-            if gcloud artifacts docker images describe "${production_image}" --format='value(image_summary.digest)' >/dev/null 2>&1; then
-              echo "Using retained production ${component} image."
-              return
-            fi
-
-            development_image="${IMAGE_REPOSITORY}/development/${component}:${tag}"
-            docker buildx imagetools create --prefer-index=false --tag "${production_image}" "${development_image}"
-          }
-
-          promote_if_missing api "${{ steps.image.outputs.tag }}"
-          promote_if_missing migration "${{ steps.image.outputs.tag }}"
-          promote_if_missing web "${{ steps.image.outputs.tag }}"
+          build_if_missing api apps/api/Dockerfile "${{ steps.image.outputs.repository }}/api:${{ steps.image.outputs.tag }}"
+          build_if_missing migration apps/migrate/Dockerfile "${{ steps.image.outputs.repository }}/migration:${{ steps.image.outputs.tag }}"
+          build_if_missing web apps/web/Dockerfile "${{ steps.image.outputs.repository }}/web:${{ steps.image.outputs.tag }}"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.8
@@ -153,7 +141,7 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve \
-            -var="migration_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/migration:${RELEASE_IMAGE_TAG}"
+            -var="migration_image=${{ steps.image.outputs.repository }}/migration:${RELEASE_IMAGE_TAG}"
       - name: Run database migrations
         env:
           RELEASE_IMAGE_TAG: ${{ steps.image.outputs.tag }}
@@ -217,8 +205,8 @@ jobs:
         run: |
           terraform init -input=false
           terraform apply -input=false -auto-approve \
-            -var="web_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/web:${{ steps.image.outputs.tag }}" \
-            -var="api_image=${IMAGE_REPOSITORY}/${DEPLOYMENT_ENVIRONMENT}/api:${{ steps.image.outputs.tag }}"
+            -var="web_image=${{ steps.image.outputs.repository }}/web:${{ steps.image.outputs.tag }}" \
+            -var="api_image=${{ steps.image.outputs.repository }}/api:${{ steps.image.outputs.tag }}"
       - name: Print deployed website URL
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |

@@ -2,8 +2,8 @@ terraform {
   required_version = ">= 1.9.0"
 
   backend "gcs" {
-    bucket = "brainlesschef-us-east1-terraform-state"
-    prefix = "environments/development"
+    bucket = "brainlesschef-us-east1-development-terraform-state"
+    prefix = "environment"
   }
 
   required_providers {

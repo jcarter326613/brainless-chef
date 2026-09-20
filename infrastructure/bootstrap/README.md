@@ -33,10 +33,12 @@ terraform plan
 terraform apply
 ```
 
+When upgrading an established project to isolated environment deployers and state buckets, pause deployments and run `bash infrastructure/bootstrap/migrate-environment-state.sh` from the repository root. The script performs the required backend and resource-state transition with the configured remote backends; do not run individual state commands yourself.
+
 After initialization, bootstrap state must exist only at `gs://brainlesschef-us-east1-terraform-state/bootstrap/default.tfstate`. The bucket has object versioning and Terraform deletion protection. Never copy bootstrap state into the repository or use local state as a fallback; recover an earlier generation from GCS object history instead.
 
-Record the `deployer_service_account` and `workload_identity_provider` outputs as GitHub Actions repository variables named `GCP_DEPLOYER_SERVICE_ACCOUNT` and `GCP_WORKLOAD_IDENTITY_PROVIDER`.
+Record the `deployer_service_accounts` and `workload_identity_providers` outputs in GitHub Environments, not repository-wide variables. Set `GCP_DEPLOYER_SERVICE_ACCOUNT` and `GCP_WORKLOAD_IDENTITY_PROVIDER` in the `development` Environment from the development values, and set the same variable names in the protected `production` Environment from the production values.
 
-The state bucket is `brainlesschef-us-east1-terraform-state` by default. If its name is changed, update the hard-coded GCS backend in the bootstrap, development, and production `versions.tf` files before initializing any stack. Backend configuration cannot use Terraform variables.
+Bootstrap state remains in `brainlesschef-us-east1-terraform-state`. Environment state is isolated in `brainlesschef-us-east1-development-terraform-state` and `brainlesschef-us-east1-production-terraform-state`; their names are hard-coded in the environment `versions.tf` files because backend configuration cannot use Terraform variables.
 
-The deployer receives a custom role bound only to the existing `brainlesschef-com` DNS zone. It can manage record sets and DNS changes in that zone, but cannot administer any other zone or project DNS configuration. Before applying the production custom-domain configuration, add `brainless-chef-deployer@brainlesschef.iam.gserviceaccount.com` as a verified owner of `brainlesschef.com` in Google Search Console. This is domain-verification access, not a Google Cloud project-owner role.
+Only the production deployer receives the custom DNS role for the existing `brainlesschef-com` zone. Before applying the production custom-domain configuration, add `brainless-chef-production-deployer@brainlesschef.iam.gserviceaccount.com` as a verified owner of `brainlesschef.com` in Google Search Console. This is domain-verification access, not a Google Cloud project-owner role.

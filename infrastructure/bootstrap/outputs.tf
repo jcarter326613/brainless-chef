@@ -1,11 +1,17 @@
-output "artifact_registry_repository" {
-  description = "Artifact Registry Docker repository path."
-  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.containers.repository_id}"
+output "artifact_registry_repositories" {
+  description = "Artifact Registry Docker repository paths by environment."
+  value = {
+    for environment, repository in google_artifact_registry_repository.environment_containers :
+    environment => "${var.region}-docker.pkg.dev/${var.project_id}/${repository.repository_id}"
+  }
 }
 
-output "deployer_service_account" {
-  description = "GitHub Actions service account email."
-  value       = google_service_account.ci_deployer.email
+output "deployer_service_accounts" {
+  description = "GitHub Actions service account email addresses by environment."
+  value = {
+    for environment, account in google_service_account.ci_deployer :
+    environment => account.email
+  }
 }
 
 output "firestore_database_ids" {
@@ -13,12 +19,18 @@ output "firestore_database_ids" {
   value       = local.firestore_databases
 }
 
-output "terraform_state_bucket" {
-  description = "GCS bucket used by environment Terraform states."
-  value       = google_storage_bucket.terraform_state.name
+output "environment_terraform_state_buckets" {
+  description = "GCS buckets used by environment Terraform states."
+  value = {
+    for environment, bucket in google_storage_bucket.environment_state :
+    environment => bucket.name
+  }
 }
 
-output "workload_identity_provider" {
-  description = "Full Workload Identity Provider resource name for GitHub Actions."
-  value       = google_iam_workload_identity_pool_provider.github.name
+output "workload_identity_providers" {
+  description = "Full Workload Identity Provider resource names by environment."
+  value = {
+    for environment, provider in google_iam_workload_identity_pool_provider.github :
+    environment => provider.name
+  }
 }

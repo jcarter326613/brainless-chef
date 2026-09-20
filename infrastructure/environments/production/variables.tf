@@ -16,12 +16,12 @@ variable "firestore_location_id" {
 
 variable "web_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/web:latest"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef-production/web:latest"
 }
 
 variable "api_image" {
   type    = string
-  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef/production/api:latest"
+  default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef-production/api:latest"
 }
 
 variable "dns_managed_zone_name" {

@@ -27,8 +27,3 @@ variable "migration_runtime_service_account_email" {
   description = "Pre-created least-privilege migrator identity with Firestore access."
   type        = string
 }
-
-variable "deployer_service_account_email" {
-  description = "CI deployer identity allowed to enqueue migrations and poll status."
-  type        = string
-}

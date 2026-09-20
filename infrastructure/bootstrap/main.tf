@@ -24,6 +24,11 @@ locals {
     development = "development"
     production  = "(default)"
   }
+
+  environment_state_bucket_names = {
+    for environment in keys(local.firestore_databases) :
+    environment => "${var.project_id}-${var.region}-${environment}-terraform-state"
+  }
 }
 
 resource "google_project_service" "required" {
@@ -51,6 +56,38 @@ resource "google_storage_bucket" "terraform_state" {
   }
 
   # Retain the current state and a month of rollback history, not every apply forever.
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      age        = 30
+      with_state = "ARCHIVED"
+    }
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket" "environment_state" {
+  for_each = local.environment_state_bucket_names
+
+  name                        = each.value
+  location                    = var.region
+  project                     = var.project_id
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  versioning {
+    enabled = true
+  }
+
   lifecycle_rule {
     action {
       type = "Delete"
@@ -119,15 +156,28 @@ resource "google_artifact_registry_repository" "containers" {
   depends_on = [google_project_service.required]
 }
 
+resource "google_artifact_registry_repository" "environment_containers" {
+  for_each = local.firestore_databases
+
+  location      = var.region
+  repository_id = "brainless-chef-${each.key}"
+  description   = "Brainless Chef ${each.key} Cloud Run container images"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required]
+}
+
 data "google_dns_managed_zone" "website" {
   name    = var.dns_managed_zone_name
   project = var.project_id
 }
 
 resource "google_service_account" "ci_deployer" {
-  account_id   = "brainless-chef-deployer"
-  display_name = "Brainless Chef GitHub Actions deployer"
-  description  = "Federated GitHub Actions identity for image publishing and Terraform deployment."
+  for_each = local.firestore_databases
+
+  account_id   = "bl-chef-${each.key}-dep"
+  display_name = "Brainless Chef ${each.key} GitHub Actions deployer"
+  description  = "Federated GitHub Actions identity for ${each.key} image publishing and Terraform deployment."
 
   depends_on = [google_project_service.required]
 }
@@ -162,22 +212,30 @@ resource "google_service_account" "migration_runtime" {
   depends_on = [google_project_service.required]
 }
 
-resource "google_project_iam_member" "deployer_run_admin" {
+resource "google_project_iam_member" "deployer_run_developer" {
+  for_each = local.firestore_databases
+
   project = var.project_id
-  role    = "roles/run.admin"
-  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
-resource "google_project_iam_member" "deployer_artifact_writer" {
-  project = var.project_id
-  role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+resource "google_artifact_registry_repository_iam_member" "deployer_artifact_writer" {
+  for_each = local.firestore_databases
+
+  location   = google_artifact_registry_repository.environment_containers[each.key].location
+  repository = google_artifact_registry_repository.environment_containers[each.key].repository_id
+  project    = var.project_id
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_project_iam_member" "deployer_service_usage" {
+  for_each = local.firestore_databases
+
   project = var.project_id
   role    = "roles/serviceusage.serviceUsageConsumer"
-  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_project_iam_custom_role" "deployer_dns_record_editor" {
@@ -205,20 +263,24 @@ resource "google_dns_managed_zone_iam_member" "deployer_dns_record_editor" {
   project      = var.project_id
   managed_zone = data.google_dns_managed_zone.website.name
   role         = google_project_iam_custom_role.deployer_dns_record_editor.name
-  member       = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member       = "serviceAccount:${google_service_account.ci_deployer["production"].email}"
 }
 
-resource "google_storage_bucket_iam_member" "deployer_terraform_state" {
-  bucket = google_storage_bucket.terraform_state.name
+resource "google_storage_bucket_iam_member" "deployer_environment_state" {
+  for_each = local.firestore_databases
+
+  bucket = google_storage_bucket.environment_state[each.key].name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 # The GCS backend reads bucket metadata before managing state objects.
-resource "google_storage_bucket_iam_member" "deployer_terraform_state_reader" {
-  bucket = google_storage_bucket.terraform_state.name
+resource "google_storage_bucket_iam_member" "deployer_environment_state_reader" {
+  for_each = local.firestore_databases
+
+  bucket = google_storage_bucket.environment_state[each.key].name
   role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_service_account_iam_member" "deployer_runtime_user" {
@@ -226,7 +288,7 @@ resource "google_service_account_iam_member" "deployer_runtime_user" {
 
   service_account_id = google_service_account.runtime[each.key].name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member             = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_service_account_iam_member" "deployer_api_runtime_user" {
@@ -234,7 +296,7 @@ resource "google_service_account_iam_member" "deployer_api_runtime_user" {
 
   service_account_id = google_service_account.api_runtime[each.key].name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member             = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_service_account_iam_member" "deployer_migration_runtime_user" {
@@ -242,7 +304,7 @@ resource "google_service_account_iam_member" "deployer_migration_runtime_user" {
 
   service_account_id = google_service_account.migration_runtime[each.key].name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member             = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
 resource "google_project_iam_member" "migration_runtime_firestore_user" {
@@ -288,7 +350,7 @@ resource "google_project_iam_member" "deployer_firestore_database_reader" {
 
   project = var.project_id
   role    = google_project_iam_custom_role.deployer_firestore_database_reader.name
-  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 
   condition {
     title       = "${each.key}-firestore-database-metadata-only"
@@ -297,12 +359,110 @@ resource "google_project_iam_member" "deployer_firestore_database_reader" {
   }
 }
 
-# Terraform creates and updates the per-environment SMTP and JWT secrets and
-# their versions when the environment stacks apply.
-resource "google_project_iam_member" "deployer_secret_admin" {
+resource "google_project_iam_custom_role" "deployer_secret_writer" {
+  role_id     = "brainlessChefSecretWriter"
+  title       = "Brainless Chef Secret Writer"
+  description = "Creates application secret containers and adds secret versions without managing secret IAM policies."
+  permissions = [
+    "secretmanager.secrets.create",
+    "secretmanager.secrets.delete",
+    "secretmanager.secrets.get",
+    "secretmanager.secrets.list",
+    "secretmanager.secrets.update",
+    "secretmanager.versions.add",
+    "secretmanager.versions.get",
+    "secretmanager.versions.list"
+  ]
+  stage = "GA"
+}
+
+resource "google_project_iam_member" "deployer_secret_writer" {
+  for_each = local.firestore_databases
+
   project = var.project_id
-  role    = "roles/secretmanager.admin"
-  member  = "serviceAccount:${google_service_account.ci_deployer.email}"
+  role    = google_project_iam_custom_role.deployer_secret_writer.name
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
+}
+
+resource "google_project_iam_member" "deployer_parameter_manager" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = "roles/parametermanager.admin"
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
+}
+
+resource "google_project_iam_member" "api_runtime_secret_accessor" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.api_runtime[each.key].email}"
+}
+
+resource "google_project_iam_member" "api_runtime_parameter_reader" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = "roles/parametermanager.viewer"
+  member  = "serviceAccount:${google_service_account.api_runtime[each.key].email}"
+}
+
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+resource "google_cloud_tasks_queue" "migration" {
+  for_each = local.firestore_databases
+
+  name     = "brainless-chef-${each.key}-migrate"
+  project  = var.project_id
+  location = var.region
+
+  rate_limits {
+    max_concurrent_dispatches = 1
+    max_dispatches_per_second = 1
+  }
+
+  retry_config {
+    max_attempts = 1
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_cloud_tasks_queue_iam_member" "deployer_enqueuer" {
+  for_each = local.firestore_databases
+
+  project  = var.project_id
+  location = google_cloud_tasks_queue.migration[each.key].location
+  name     = google_cloud_tasks_queue.migration[each.key].name
+  role     = "roles/cloudtasks.enqueuer"
+  member   = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
+}
+
+resource "google_service_account_iam_member" "cloud_tasks_token_creator" {
+  for_each = local.firestore_databases
+
+  service_account_id = google_service_account.migration_runtime[each.key].name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-cloudtasks.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "deployer_migration_invoker" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
+}
+
+resource "google_project_iam_member" "migration_runtime_invoker" {
+  for_each = local.firestore_databases
+
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.migration_runtime[each.key].email}"
 }
 
 resource "google_iam_workload_identity_pool" "github" {
@@ -314,14 +474,18 @@ resource "google_iam_workload_identity_pool" "github" {
 }
 
 resource "google_iam_workload_identity_pool_provider" "github" {
+  for_each = local.firestore_databases
+
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
-  workload_identity_pool_provider_id = "github"
-  display_name                       = "GitHub Actions"
-  attribute_condition                = "assertion.repository == '${var.github_repository}'"
+  workload_identity_pool_provider_id = "github-${each.key}"
+  display_name                       = "GitHub Actions ${each.key}"
+  attribute_condition                = each.key == "production" ? "assertion.repository == '${var.github_repository}' && assertion.environment == 'production' && assertion.ref == 'refs/heads/main'" : "assertion.repository == '${var.github_repository}' && assertion.environment == 'development' && assertion.ref.startsWith('refs/heads/')"
 
   attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.repository" = "assertion.repository"
+    "google.subject"        = "assertion.sub"
+    "attribute.environment" = "assertion.environment"
+    "attribute.repository"  = "assertion.repository"
+    "attribute.ref"         = "assertion.ref"
   }
 
   oidc {
@@ -330,7 +494,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 }
 
 resource "google_service_account_iam_member" "github_workload_identity_user" {
-  service_account_id = google_service_account.ci_deployer.name
+  for_each = local.firestore_databases
+
+  service_account_id = google_service_account.ci_deployer[each.key].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.environment/${each.key}"
 }
