@@ -39,7 +39,7 @@ function toRecord(
 ): MigrationTask {
   return {
     appliedMigrations: task.appliedMigrations,
-    error: task.error,
+    ...(task.error === undefined ? {} : { error: task.error }),
     imageTag: task.imageTag,
     registryFingerprint: task.registryFingerprint,
     requestId: task.requestId,

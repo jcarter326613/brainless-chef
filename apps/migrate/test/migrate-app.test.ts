@@ -117,6 +117,7 @@ describe("migration server", () => {
       state: "succeeded",
     });
     expect(context.database.migrateCalls).toBe(1);
+    expect(context.database.tasks.get("task-1")).not.toHaveProperty("error");
 
     const status = await fetch(`${context.baseUrl}/__migrate/status/migrate-dev-abc`);
     await expect(status.json()).resolves.toMatchObject({ state: "succeeded" });
