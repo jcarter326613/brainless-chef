@@ -33,13 +33,14 @@ export function createApp(options: AppOptions) {
     resendCooldownMs: RESEND_COOLDOWN_MS,
   });
 
-  app.get("/api/health", (_req, res) => {
+  app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });
 
   app.use(
     createAuthRouter({
       mailer: options.mailer,
+      publicApiUrl: options.config.publicApiUrl,
       secureCookies: options.config.secureCookies,
       sessionCookieMaxAgeMs: SESSION_TTL_MS,
       siteOrigin: options.config.siteOrigin,
@@ -48,7 +49,7 @@ export function createApp(options: AppOptions) {
     }),
   );
 
-  app.use("/api", (_req, res) => {
+  app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
   });
 

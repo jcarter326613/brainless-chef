@@ -10,6 +10,7 @@ function validEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
     MAIL_FROM: "no-reply@example.test",
     MAILTRAP_API_TOKEN: "test-token",
     MAILTRAP_MODE: "sandbox",
+    PUBLIC_API_URL: "https://example.test/api",
     COOKIE_SECURE: "true",
     SITE_ORIGIN: "https://example.test",
     ...overrides,
@@ -30,6 +31,7 @@ describe("loadConfig", () => {
       mailFrom: "no-reply@example.test",
       mailtrapApiToken: "test-token",
       mailtrapMode: "sandbox",
+      publicApiUrl: "https://example.test/api",
       secureCookies: true,
       siteOrigin: "https://example.test",
     });

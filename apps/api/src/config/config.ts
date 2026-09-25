@@ -7,6 +7,7 @@ const configSchema = z.object({
   mailFrom: z.string().trim().min(1),
   mailtrapApiToken: z.string().trim().min(1),
   mailtrapMode: z.union([z.literal("sending"), z.literal("sandbox")]),
+  publicApiUrl: z.string().trim().url(),
   secureCookies: z
     .union([z.literal("true"), z.literal("false")])
     .default("true")
@@ -25,6 +26,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mailFrom: env.MAIL_FROM,
     mailtrapApiToken: env.MAILTRAP_API_TOKEN,
     mailtrapMode: env.MAILTRAP_MODE,
+    publicApiUrl: env.PUBLIC_API_URL,
     secureCookies: env.COOKIE_SECURE,
     siteOrigin: env.SITE_ORIGIN,
   });

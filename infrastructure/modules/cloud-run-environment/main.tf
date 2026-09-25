@@ -1,5 +1,6 @@
 locals {
-  site_origin = var.site_origin
+  public_api_url = "${trimsuffix(var.site_origin, "/")}/api"
+  site_origin    = var.site_origin
 }
 
 resource "google_cloud_run_v2_service" "web" {
@@ -140,7 +141,8 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_parameter_manager_parameter_version.site_origin,
     google_parameter_manager_parameter_version.mail_from,
-    google_parameter_manager_parameter_version.mailtrap_mode
+    google_parameter_manager_parameter_version.mailtrap_mode,
+    google_parameter_manager_parameter_version.public_api_url
   ]
 }
 
@@ -218,6 +220,24 @@ resource "google_parameter_manager_parameter_version" "mailtrap_mode" {
   parameter            = google_parameter_manager_parameter.mailtrap_mode.id
   parameter_version_id = format("v-%s", substr(sha256(var.mailtrap_mode), 0, 16))
   parameter_data       = var.mailtrap_mode
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_parameter_manager_parameter" "public_api_url" {
+  parameter_id = "${var.environment}-api-public-url"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_parameter_manager_parameter_version" "public_api_url" {
+  parameter            = google_parameter_manager_parameter.public_api_url.id
+  parameter_version_id = format("v-%s", substr(sha256(local.public_api_url), 0, 16))
+  parameter_data       = local.public_api_url
 
   lifecycle {
     create_before_destroy = true

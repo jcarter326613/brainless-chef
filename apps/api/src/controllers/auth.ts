@@ -9,6 +9,7 @@ const emailSchema = z.object({ email: z.email() });
 
 export interface AuthControllerOptions {
   mailer: Mailer;
+  publicApiUrl: string;
   secureCookies: boolean;
   sessionCookieMaxAgeMs: number;
   siteOrigin: string;
@@ -18,6 +19,7 @@ export interface AuthControllerOptions {
 
 export class AuthController {
   private readonly mailer: Mailer;
+  private readonly publicApiUrl: string;
   private readonly secureCookies: boolean;
   private readonly sessionCookieMaxAgeMs: number;
   private readonly siteOrigin: string;
@@ -26,6 +28,7 @@ export class AuthController {
 
   constructor(options: AuthControllerOptions) {
     this.mailer = options.mailer;
+    this.publicApiUrl = options.publicApiUrl;
     this.secureCookies = options.secureCookies;
     this.sessionCookieMaxAgeMs = options.sessionCookieMaxAgeMs;
     this.siteOrigin = options.siteOrigin;
@@ -57,7 +60,7 @@ export class AuthController {
       jti: prepared.jti,
       sub: prepared.user.id,
     });
-    const loginUrl = `${this.siteOrigin}/api/auth/verify-login?token=${encodeURIComponent(token)}`;
+    const loginUrl = `${this.publicApiUrl}/auth/verify-login?token=${encodeURIComponent(token)}`;
 
     try {
       await this.mailer.sendLoginLink({ to: email, loginUrl });

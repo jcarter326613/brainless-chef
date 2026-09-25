@@ -7,9 +7,9 @@ export function createAuthRouter(options: AuthControllerOptions): Router {
 
   const auth = new AuthController(options);
 
-  router.post("/api/auth/start-login", (req, res) => auth.startLogin(req, res));
-  router.get("/api/auth/verify-login", (req, res) => auth.verifyLogin(req, res));
-  router.get("/api/auth/me", (req, res) => auth.me(req, res));
+  router.post("/auth/start-login", (req, res) => auth.startLogin(req, res));
+  router.get("/auth/verify-login", (req, res) => auth.verifyLogin(req, res));
+  router.get("/auth/me", (req, res) => auth.me(req, res));
 
   return router;
 }

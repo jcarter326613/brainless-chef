@@ -105,6 +105,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     mailtrapApiToken: "test-token",
     mailtrapMode: "sandbox",
     secureCookies: false,
+    publicApiUrl: "https://example.test/api",
     siteOrigin: "https://example.test",
     ...overrides,
   };
@@ -149,19 +150,19 @@ describe("web API routes", () => {
   });
 
   it("reports health", async () => {
-    const response = await fetch(`${context.baseUrl}/api/health`);
+    const response = await fetch(`${context.baseUrl}/health`);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
   it("returns 404 json for unknown api routes", async () => {
-    const response = await fetch(`${context.baseUrl}/api/does-not-exist`);
+    const response = await fetch(`${context.baseUrl}/does-not-exist`);
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "not_found" });
   });
 
   it("sends a login link for a new user", async () => {
-    const response = await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    const response = await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "NEW@Example.com" }),
@@ -178,7 +179,7 @@ describe("web API routes", () => {
   });
 
   it("rejects an invalid email", async () => {
-    const response = await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    const response = await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "not-an-email" }),
@@ -189,12 +190,12 @@ describe("web API routes", () => {
   });
 
   it("throttles rapid repeat login-link requests", async () => {
-    await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "a@example.com" }),
     });
-    const second = await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    const second = await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "a@example.com" }),
@@ -207,7 +208,7 @@ describe("web API routes", () => {
   it("returns 503 when the mailer fails", async () => {
     context.mailer.fail = true;
 
-    const response = await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    const response = await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "a@example.com" }),
@@ -217,7 +218,7 @@ describe("web API routes", () => {
   });
 
   it("completes the magic-link flow and signs the user in", async () => {
-    await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "a@example.com" }),
@@ -225,7 +226,7 @@ describe("web API routes", () => {
     const loginUrl = new URL(context.mailer.sent[0].loginUrl);
     const token = loginUrl.searchParams.get("token")!;
 
-    const redirect = await fetch(`${context.baseUrl}/api/auth/verify-login?token=${token}`, {
+    const redirect = await fetch(`${context.baseUrl}/auth/verify-login?token=${token}`, {
       redirect: "manual",
     });
 
@@ -234,7 +235,7 @@ describe("web API routes", () => {
     const sessionCookie = extractSessionCookie(redirect.headers.getSetCookie?.() ?? redirect.headers.get("set-cookie")!);
     expect(sessionCookie).toMatch(/^session=/);
 
-    const me = await fetch(`${context.baseUrl}/api/auth/me`, {
+    const me = await fetch(`${context.baseUrl}/auth/me`, {
       headers: { Cookie: sessionCookie! },
     });
     expect(me.status).toBe(200);
@@ -244,23 +245,23 @@ describe("web API routes", () => {
   });
 
   it("consumes a login token only once", async () => {
-    await fetch(`${context.baseUrl}/api/auth/start-login`, {
+    await fetch(`${context.baseUrl}/auth/start-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "a@example.com" }),
     });
     const token = new URL(context.mailer.sent[0].loginUrl).searchParams.get("token")!;
 
-    const first = await fetch(`${context.baseUrl}/api/auth/verify-login?token=${token}`, { redirect: "manual" });
+    const first = await fetch(`${context.baseUrl}/auth/verify-login?token=${token}`, { redirect: "manual" });
     expect(first.status).toBe(302);
 
-    const replay = await fetch(`${context.baseUrl}/api/auth/verify-login?token=${token}`, { redirect: "manual" });
+    const replay = await fetch(`${context.baseUrl}/auth/verify-login?token=${token}`, { redirect: "manual" });
     expect(replay.status).toBe(302);
     expect(replay.headers.get("location")).toBe("https://example.test/?signin=expired");
   });
 
   it("redirects expired or invalid tokens", async () => {
-    const response = await fetch(`${context.baseUrl}/api/auth/verify-login?token=garbage`, {
+    const response = await fetch(`${context.baseUrl}/auth/verify-login?token=garbage`, {
       redirect: "manual",
     });
 
@@ -269,7 +270,7 @@ describe("web API routes", () => {
   });
 
   it("reports no user without a session cookie", async () => {
-    const response = await fetch(`${context.baseUrl}/api/auth/me`);
+    const response = await fetch(`${context.baseUrl}/auth/me`);
     await expect(response.json()).resolves.toEqual({ user: null });
   });
 });

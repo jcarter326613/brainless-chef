@@ -42,11 +42,13 @@ describe("ParameterStore", () => {
       "site-origin": "https://brainlesschef.com",
       "mail-from": "no-reply@brainlesschef.com",
       "mailtrap-mode": "sending",
+      "public-url": "https://brainlesschef.com/api",
     });
 
     await expect(store.fetchEnvironmentOverrides()).resolves.toEqual({
       MAIL_FROM: "no-reply@brainlesschef.com",
       MAILTRAP_MODE: "sending",
+      PUBLIC_API_URL: "https://brainlesschef.com/api",
       SITE_ORIGIN: "https://brainlesschef.com",
     });
   });

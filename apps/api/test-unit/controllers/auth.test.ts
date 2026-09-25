@@ -103,6 +103,7 @@ function makeController() {
   const mailer = new FakeMailer();
   const controller = new AuthController({
     mailer,
+    publicApiUrl: "https://example.test/api",
     secureCookies: true,
     sessionCookieMaxAgeMs: SESSION_TTL_MS,
     siteOrigin: "https://example.test",
