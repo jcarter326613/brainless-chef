@@ -259,6 +259,30 @@ describe("web API routes", () => {
     expect(replay.headers.get("location")).toBe("https://example.test/?signin=expired");
   });
 
+  it("expires the session cookie when signing out", async () => {
+    await fetch(`${context.baseUrl}/auth/start-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "a@example.com" }),
+    });
+    const token = new URL(context.mailer.sent[0].loginUrl).searchParams.get("token")!;
+    const login = await fetch(`${context.baseUrl}/auth/verify-login?token=${token}`, {
+      redirect: "manual",
+    });
+    const sessionCookie = extractSessionCookie(
+      login.headers.getSetCookie?.() ?? login.headers.get("set-cookie")!,
+    );
+
+    const response = await fetch(`${context.baseUrl}/auth/sign-out`, {
+      method: "POST",
+      headers: { Cookie: sessionCookie! },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toContain("session=;");
+    expect(response.headers.get("set-cookie")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+  });
+
   it("redirects expired or invalid tokens", async () => {
     const response = await fetch(`${context.baseUrl}/auth/verify-login?token=garbage`, {
       redirect: "manual",

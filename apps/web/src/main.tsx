@@ -58,8 +58,15 @@ function App() {
     }
   }
 
-  function signOut() {
-    setUser(null);
+  async function signOut() {
+    try {
+      const response = await fetch("/api/auth/sign-out", { method: "POST" });
+      if (response.ok) {
+        setUser(null);
+        return;
+      }
+    } catch {}
+    setUrlMessage("Couldn't sign out. Try again.");
   }
 
   return (

@@ -119,6 +119,7 @@ class FakeRes {
   body: unknown;
   setHeaders = new Map<string, string>();
   cookies: Array<{ name: string; value: string }> = [];
+  clearedCookies: Array<{ name: string; options: object }> = [];
   redirectLocation: string | undefined;
 
   status(code: number): this {
@@ -138,6 +139,15 @@ class FakeRes {
 
   cookie(name: string, value: string): this {
     this.cookies.push({ name, value });
+    return this;
+  }
+
+  clearCookie(name: string, options: object): this {
+    this.clearedCookies.push({ name, options });
+    return this;
+  }
+
+  end(): this {
     return this;
   }
 
@@ -313,6 +323,23 @@ describe("AuthController", () => {
       await controller.me(req({ cookies: { session } }), res as unknown as Response);
 
       expect(res.body).toEqual({ user: null });
+    });
+  });
+
+  describe("signOut", () => {
+    it("expires the session cookie", () => {
+      const { controller } = makeController();
+      const res = new FakeRes();
+
+      controller.signOut(req({}), res as unknown as Response);
+
+      expect(res.statusCode).toBe(204);
+      expect(res.clearedCookies).toEqual([
+        {
+          name: "session",
+          options: { httpOnly: true, path: "/", sameSite: "lax", secure: true },
+        },
+      ]);
     });
   });
 });

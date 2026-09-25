@@ -132,4 +132,14 @@ export class AuthController {
       res.json({ user: null });
     }
   }
+
+  signOut(_req: Request, res: Response): void {
+    res.clearCookie("session", {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: this.secureCookies,
+    });
+    res.status(204).end();
+  }
 }
