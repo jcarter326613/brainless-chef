@@ -43,7 +43,6 @@ export function createApp(options: AppOptions) {
       publicApiUrl: options.config.publicApiUrl,
       secureCookies: options.config.secureCookies,
       sessionCookieMaxAgeMs: SESSION_TTL_MS,
-      siteOrigin: options.config.siteOrigin,
       tokenService,
       userService,
     }),

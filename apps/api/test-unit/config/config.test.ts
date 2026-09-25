@@ -12,7 +12,6 @@ function validEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
     MAILTRAP_MODE: "sandbox",
     PUBLIC_API_URL: "https://example.test/api",
     COOKIE_SECURE: "true",
-    SITE_ORIGIN: "https://example.test",
     ...overrides,
   };
 }
@@ -33,7 +32,6 @@ describe("loadConfig", () => {
       mailtrapMode: "sandbox",
       publicApiUrl: "https://example.test/api",
       secureCookies: true,
-      siteOrigin: "https://example.test",
     });
   });
 
@@ -52,8 +50,8 @@ describe("loadConfig", () => {
   });
 
   it("trims values before validating", () => {
-    expect(loadConfig(validEnv({ SITE_ORIGIN: " https://example.test " })).siteOrigin).toBe(
-      "https://example.test",
+    expect(loadConfig(validEnv({ PUBLIC_API_URL: " https://example.test/api " })).publicApiUrl).toBe(
+      "https://example.test/api",
     );
   });
 
@@ -65,8 +63,8 @@ describe("loadConfig", () => {
     expect(() => loadConfig(validEnv({ JWT_SECRET: "too-short" }))).toThrow();
   });
 
-  it("rejects an invalid site origin", () => {
-    expect(() => loadConfig(validEnv({ SITE_ORIGIN: "not-a-url" }))).toThrow();
+  it("rejects an invalid public API URL", () => {
+    expect(() => loadConfig(validEnv({ PUBLIC_API_URL: "not-a-url" }))).toThrow();
   });
 
   it("rejects an unsupported mailtrap mode", () => {

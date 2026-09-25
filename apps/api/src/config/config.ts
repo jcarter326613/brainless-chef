@@ -12,7 +12,6 @@ const configSchema = z.object({
     .union([z.literal("true"), z.literal("false")])
     .default("true")
     .transform((value) => value === "true"),
-  siteOrigin: z.string().trim().url(),
 });
 
 export type AppConfig = z.output<typeof configSchema>;
@@ -28,6 +27,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mailtrapMode: env.MAILTRAP_MODE,
     publicApiUrl: env.PUBLIC_API_URL,
     secureCookies: env.COOKIE_SECURE,
-    siteOrigin: env.SITE_ORIGIN,
   });
 }

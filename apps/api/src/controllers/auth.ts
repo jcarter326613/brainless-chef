@@ -12,7 +12,6 @@ export interface AuthControllerOptions {
   publicApiUrl: string;
   secureCookies: boolean;
   sessionCookieMaxAgeMs: number;
-  siteOrigin: string;
   tokenService: TokenService;
   userService: UserService;
 }
@@ -31,7 +30,7 @@ export class AuthController {
     this.publicApiUrl = options.publicApiUrl;
     this.secureCookies = options.secureCookies;
     this.sessionCookieMaxAgeMs = options.sessionCookieMaxAgeMs;
-    this.siteOrigin = options.siteOrigin;
+    this.siteOrigin = new URL(options.publicApiUrl).origin;
     this.tokenService = options.tokenService;
     this.userService = options.userService;
   }

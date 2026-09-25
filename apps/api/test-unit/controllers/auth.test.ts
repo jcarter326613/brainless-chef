@@ -17,6 +17,8 @@ import {
 } from "../../src/services/user-service.js";
 
 const secret = "Y".repeat(44);
+const host = "https://gateway.example.test";
+const publicApiUrl = `${host}/api`;
 
 class FakeMailer implements Mailer {
   fail = false;
@@ -103,10 +105,9 @@ function makeController() {
   const mailer = new FakeMailer();
   const controller = new AuthController({
     mailer,
-    publicApiUrl: "https://example.test/api",
+    publicApiUrl,
     secureCookies: true,
     sessionCookieMaxAgeMs: SESSION_TTL_MS,
-    siteOrigin: "https://example.test",
     tokenService,
     userService,
   });
@@ -173,9 +174,9 @@ describe("AuthController", () => {
       expect(res.body).toEqual({ email: "new@example.com" });
       expect(mailer.sent).toHaveLength(1);
       expect(mailer.sent[0].to).toBe("new@example.com");
-      expect(mailer.sent[0].loginUrl).toMatch(
-        /^https:\/\/example\.test\/api\/auth\/verify-login\?token=[\w.-]+$/,
-      );
+      const loginUrlPrefix = `${publicApiUrl}/auth/verify-login?token=`;
+      expect(mailer.sent[0].loginUrl.startsWith(loginUrlPrefix)).toBe(true);
+      expect(mailer.sent[0].loginUrl.slice(loginUrlPrefix.length)).toMatch(/^[\w.-]+$/);
     });
 
     it("throttles repeat requests and sets Retry-After", async () => {
@@ -211,7 +212,7 @@ describe("AuthController", () => {
 
       await controller.verifyLogin(req({ query: {} }), res as unknown as Response);
 
-      expect(res.redirectLocation).toBe("https://example.test/?signin=invalid");
+      expect(res.redirectLocation).toBe(`${host}/?signin=invalid`);
     });
 
     it("redirects with signin=expired for an invalid token", async () => {
@@ -225,7 +226,7 @@ describe("AuthController", () => {
 
       await controller.verifyLogin(req({ query: { token: valid } }), res as unknown as Response);
 
-      expect(res.redirectLocation).toBe("https://example.test/?signin=expired");
+      expect(res.redirectLocation).toBe(`${host}/?signin=expired`);
     });
 
     it("signs the user in and sets the session cookie", async () => {
@@ -240,7 +241,7 @@ describe("AuthController", () => {
 
       await controller.verifyLogin(req({ query: { token: loginToken } }), res as unknown as Response);
 
-      expect(res.redirectLocation).toBe("https://example.test");
+      expect(res.redirectLocation).toBe(host);
       expect(res.cookies).toHaveLength(1);
       expect(res.cookies[0].name).toBe("session");
       expect(res.cookies[0].value).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
@@ -256,12 +257,12 @@ describe("AuthController", () => {
       });
       const first = new FakeRes();
       await controller.verifyLogin(req({ query: { token: loginToken } }), first as unknown as Response);
-      expect(first.redirectLocation).toBe("https://example.test");
+      expect(first.redirectLocation).toBe(host);
 
       const replay = new FakeRes();
       await controller.verifyLogin(req({ query: { token: loginToken } }), replay as unknown as Response);
 
-      expect(replay.redirectLocation).toBe("https://example.test/?signin=expired");
+      expect(replay.redirectLocation).toBe(`${host}/?signin=expired`);
     });
   });
 

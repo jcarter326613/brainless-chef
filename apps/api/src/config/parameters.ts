@@ -1,12 +1,11 @@
 import { ParameterManagerClient } from "@google-cloud/parametermanager";
 
-const PARAMETER_NAMES = ["site-origin", "mail-from", "mailtrap-mode", "public-url"] as const;
+const PARAMETER_NAMES = ["mail-from", "mailtrap-mode", "public-url"] as const;
 
 export type RuntimeEnvironmentOverrides = {
   MAIL_FROM?: string;
   MAILTRAP_MODE?: string;
   PUBLIC_API_URL?: string;
-  SITE_ORIGIN?: string;
 };
 
 export interface ParameterReader {
@@ -85,10 +84,7 @@ export class ParameterStore {
     );
 
     const overrides: RuntimeEnvironmentOverrides = {};
-    const [siteOrigin, mailFrom, mailtrapMode, publicApiUrl] = values;
-    if (siteOrigin) {
-      overrides.SITE_ORIGIN = siteOrigin;
-    }
+    const [mailFrom, mailtrapMode, publicApiUrl] = values;
     if (mailFrom) {
       overrides.MAIL_FROM = mailFrom;
     }

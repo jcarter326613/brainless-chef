@@ -106,7 +106,6 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     mailtrapMode: "sandbox",
     secureCookies: false,
     publicApiUrl: "https://example.test/api",
-    siteOrigin: "https://example.test",
     ...overrides,
   };
 }

@@ -1,6 +1,5 @@
 locals {
   public_api_url = "${trimsuffix(var.site_origin, "/")}/api"
-  site_origin    = var.site_origin
 }
 
 resource "google_cloud_run_v2_service" "web" {
@@ -91,7 +90,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       # Names the environment's Parameter Manager parameters so the API can
-      # resolve its remaining configuration (site origin, mail settings) at
+      # resolve its remaining configuration (mail settings, public API URL) at
       # startup instead of receiving it as environment variables.
       env {
         name  = "APP_ENVIRONMENT"
@@ -139,7 +138,6 @@ resource "google_cloud_run_v2_service" "api" {
   }
 
   depends_on = [
-    google_parameter_manager_parameter_version.site_origin,
     google_parameter_manager_parameter_version.mail_from,
     google_parameter_manager_parameter_version.mailtrap_mode,
     google_parameter_manager_parameter_version.public_api_url
@@ -172,24 +170,6 @@ resource "google_secret_manager_secret" "jwt" {
 # Non-secret API configuration lives in Cloud Parameter Manager so it is not
 # baked into environment variables. Parameter IDs share an environment prefix
 # so the runtime IAM condition can scope access to one environment.
-resource "google_parameter_manager_parameter" "site_origin" {
-  parameter_id = "${var.environment}-api-site-origin"
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "google_parameter_manager_parameter_version" "site_origin" {
-  parameter            = google_parameter_manager_parameter.site_origin.id
-  parameter_version_id = format("v-%s", substr(sha256(local.site_origin), 0, 16))
-  parameter_data       = local.site_origin
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 resource "google_parameter_manager_parameter" "mail_from" {
   parameter_id = "${var.environment}-api-mail-from"
 

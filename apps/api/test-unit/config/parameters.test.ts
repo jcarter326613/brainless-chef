@@ -8,8 +8,8 @@ import {
 
 describe("parameterReference", () => {
   it("builds the reference for an environment parameter", () => {
-    expect(parameterReference("brainlesschef", "development", "site-origin")).toBe(
-      "projects/brainlesschef/locations/global/parameters/development-api-site-origin",
+    expect(parameterReference("brainlesschef", "development", "public-url")).toBe(
+      "projects/brainlesschef/locations/global/parameters/development-api-public-url",
     );
   });
 });
@@ -39,7 +39,6 @@ describe("ParameterStore", () => {
 
   it("returns environment variable overrides from the newest parameter versions", async () => {
     const store = makeStore({
-      "site-origin": "https://brainlesschef.com",
       "mail-from": "no-reply@brainlesschef.com",
       "mailtrap-mode": "sending",
       "public-url": "https://brainlesschef.com/api",
@@ -49,7 +48,6 @@ describe("ParameterStore", () => {
       MAIL_FROM: "no-reply@brainlesschef.com",
       MAILTRAP_MODE: "sending",
       PUBLIC_API_URL: "https://brainlesschef.com/api",
-      SITE_ORIGIN: "https://brainlesschef.com",
     });
   });
 
