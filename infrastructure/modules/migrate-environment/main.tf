@@ -1,8 +1,9 @@
 resource "google_cloud_run_v2_service" "migrate" {
-  name     = "brainless-chef-${var.environment}-migrate"
-  location = var.region
-  project  = var.project_id
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name                = "brainless-chef-${var.environment}-migrate"
+  location            = var.region
+  project             = var.project_id
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
 
   template {
     service_account                  = var.migration_runtime_service_account_email

@@ -1,5 +1,5 @@
 locals {
-  site_origin = coalesce(var.site_origin, google_cloud_run_v2_service.web.uri)
+  site_origin = var.site_origin
 }
 
 resource "google_cloud_run_v2_service" "web" {
@@ -8,6 +8,7 @@ resource "google_cloud_run_v2_service" "web" {
   project              = var.project_id
   ingress              = "INGRESS_TRAFFIC_ALL"
   invoker_iam_disabled = true
+  deletion_protection  = false
 
   template {
     service_account                  = var.web_runtime_service_account_email
@@ -50,6 +51,7 @@ resource "google_cloud_run_v2_service" "web" {
     percent = 100
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
+
 }
 
 resource "google_cloud_run_v2_service" "api" {
@@ -58,6 +60,7 @@ resource "google_cloud_run_v2_service" "api" {
   project              = var.project_id
   ingress              = "INGRESS_TRAFFIC_ALL"
   invoker_iam_disabled = true
+  deletion_protection  = false
 
   template {
     service_account                  = var.api_runtime_service_account_email
@@ -81,6 +84,11 @@ resource "google_cloud_run_v2_service" "api" {
         value = var.firestore_database_id
       }
 
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+
       # Names the environment's Parameter Manager parameters so the API can
       # resolve its remaining configuration (site origin, mail settings) at
       # startup instead of receiving it as environment variables.
@@ -94,7 +102,8 @@ resource "google_cloud_run_v2_service" "api" {
 
         value_source {
           secret_key_ref {
-            secret = google_secret_manager_secret.mailtrap.secret_id
+            secret  = google_secret_manager_secret.mailtrap.secret_id
+            version = "latest"
           }
         }
       }
@@ -104,7 +113,8 @@ resource "google_cloud_run_v2_service" "api" {
 
         value_source {
           secret_key_ref {
-            secret = google_secret_manager_secret.jwt.secret_id
+            secret  = google_secret_manager_secret.jwt.secret_id
+            version = "latest"
           }
         }
       }
@@ -126,6 +136,12 @@ resource "google_cloud_run_v2_service" "api" {
     percent = 100
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
+
+  depends_on = [
+    google_parameter_manager_parameter_version.site_origin,
+    google_parameter_manager_parameter_version.mail_from,
+    google_parameter_manager_parameter_version.mailtrap_mode
+  ]
 }
 
 # Secrets are stored in Cloud Secret Manager and injected as Cloud Run env
@@ -152,10 +168,14 @@ resource "google_secret_manager_secret" "jwt" {
 }
 
 # Non-secret API configuration lives in Cloud Parameter Manager so it is not
-# baked into environment variables. The API resolves these parameters at
-# startup. Parameter IDs are environment-qualified for the same project.
+# baked into environment variables. Parameter IDs share an environment prefix
+# so the runtime IAM condition can scope access to one environment.
 resource "google_parameter_manager_parameter" "site_origin" {
-  parameter_id = "api-site-origin-${var.environment}"
+  parameter_id = "${var.environment}-api-site-origin"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_parameter_manager_parameter_version" "site_origin" {
@@ -169,7 +189,11 @@ resource "google_parameter_manager_parameter_version" "site_origin" {
 }
 
 resource "google_parameter_manager_parameter" "mail_from" {
-  parameter_id = "api-mail-from-${var.environment}"
+  parameter_id = "${var.environment}-api-mail-from"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_parameter_manager_parameter_version" "mail_from" {
@@ -183,7 +207,11 @@ resource "google_parameter_manager_parameter_version" "mail_from" {
 }
 
 resource "google_parameter_manager_parameter" "mailtrap_mode" {
-  parameter_id = "api-mailtrap-mode-${var.environment}"
+  parameter_id = "${var.environment}-api-mailtrap-mode"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_parameter_manager_parameter_version" "mailtrap_mode" {

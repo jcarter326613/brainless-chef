@@ -24,6 +24,7 @@ module "cloud_run" {
   web_image                         = var.web_image
   api_image                         = var.api_image
   firestore_database_id             = "development"
+  site_origin                       = var.site_origin
   mail_from                         = "no-reply@brainlesschef.com"
   mailtrap_mode                     = "sandbox"
 }

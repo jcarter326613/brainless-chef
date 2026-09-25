@@ -9,6 +9,7 @@ export type RuntimeEnvironmentOverrides = {
 };
 
 export interface ParameterReader {
+  listVersions(reference: string): Promise<string[]>;
   renderVersion(reference: string): Promise<string | undefined>;
 }
 
@@ -18,12 +19,12 @@ export interface ParameterStoreOptions {
   reader: ParameterReader;
 }
 
-export function parameterVersionReference(
+export function parameterReference(
   projectId: string,
   environment: string,
   parameterName: string,
 ): string {
-  return `projects/${projectId}/locations/global/parameters/api-${parameterName}-${environment}/versions/latest`;
+  return `projects/${projectId}/locations/global/parameters/${environment}-api-${parameterName}`;
 }
 
 export class GoogleParameterReader implements ParameterReader {
@@ -31,6 +32,22 @@ export class GoogleParameterReader implements ParameterReader {
 
   constructor(projectId: string) {
     this.client = new ParameterManagerClient({ projectId });
+  }
+
+  async listVersions(reference: string): Promise<string[]> {
+    try {
+      const [versions] = await this.client.listParameterVersions({ parent: reference });
+      return versions
+        .sort((left, right) => {
+          const leftTime = Number(left.createTime?.seconds ?? 0);
+          const rightTime = Number(right.createTime?.seconds ?? 0);
+          return rightTime - leftTime;
+        })
+        .flatMap((version) => (version.name == null ? [] : [version.name]));
+    } catch (error) {
+      console.error(`Failed to list parameter versions for ${reference}.`, error);
+      return [];
+    }
   }
 
   async renderVersion(reference: string): Promise<string | undefined> {
@@ -58,11 +75,12 @@ export class ParameterStore {
 
   async fetchEnvironmentOverrides(): Promise<RuntimeEnvironmentOverrides> {
     const values = await Promise.all(
-      PARAMETER_NAMES.map((parameterName) =>
-        this.reader.renderVersion(
-          parameterVersionReference(this.projectId, this.environment, parameterName),
-        ),
-      ),
+      PARAMETER_NAMES.map(async (parameterName) => {
+        const [version] = await this.reader.listVersions(
+          parameterReference(this.projectId, this.environment, parameterName),
+        );
+        return version == null ? undefined : this.reader.renderVersion(version);
+      }),
     );
 
     const overrides: RuntimeEnvironmentOverrides = {};

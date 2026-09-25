@@ -392,6 +392,19 @@ resource "google_project_iam_member" "deployer_parameter_manager" {
   member  = "serviceAccount:${google_service_account.ci_deployer[each.key].email}"
 }
 
+resource "google_project_iam_custom_role" "api_runtime_parameter_reader" {
+  role_id     = "brainlessChefParameterReader"
+  title       = "Brainless Chef Parameter Reader"
+  description = "Lists and renders Parameter Manager versions for the API runtime."
+  permissions = [
+    "parametermanager.parameterVersions.list",
+    "parametermanager.parameterVersions.render"
+  ]
+  stage = "GA"
+
+  depends_on = [google_project_service.required]
+}
+
 resource "google_project_iam_member" "api_runtime_secret_accessor" {
   for_each = local.firestore_databases
 
@@ -404,8 +417,14 @@ resource "google_project_iam_member" "api_runtime_parameter_reader" {
   for_each = local.firestore_databases
 
   project = var.project_id
-  role    = "roles/parametermanager.viewer"
+  role    = google_project_iam_custom_role.api_runtime_parameter_reader.name
   member  = "serviceAccount:${google_service_account.api_runtime[each.key].email}"
+
+  condition {
+    title       = "${each.key}-parameters-only"
+    description = "Allows the ${each.key} API runtime to read only ${each.key}-prefixed parameters."
+    expression  = "resource.name.startsWith('projects/${var.project_id}/locations/global/parameters/${each.key}-api-')"
+  }
 }
 
 data "google_project" "current" {

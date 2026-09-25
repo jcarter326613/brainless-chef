@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   ParameterStore,
-  parameterVersionReference,
+  parameterReference,
   type ParameterReader,
 } from "../../src/config/parameters.js";
 
-describe("parameterVersionReference", () => {
-  it("builds the render reference for an environment parameter", () => {
-    expect(parameterVersionReference("brainlesschef", "development", "site-origin")).toBe(
-      "projects/brainlesschef/locations/global/parameters/api-site-origin-development/versions/latest",
+describe("parameterReference", () => {
+  it("builds the reference for an environment parameter", () => {
+    expect(parameterReference("brainlesschef", "development", "site-origin")).toBe(
+      "projects/brainlesschef/locations/global/parameters/development-api-site-origin",
     );
   });
 });
@@ -19,12 +19,16 @@ describe("ParameterStore", () => {
     const payloadsByReference = new Map<string, string>();
     for (const [parameterName, value] of Object.entries(overrides)) {
       payloadsByReference.set(
-        parameterVersionReference("brainlesschef", "production", parameterName),
+        `${parameterReference("brainlesschef", "production", parameterName)}/versions/v-current`,
         value,
       );
     }
 
     const reader: ParameterReader = {
+      async listVersions(reference: string): Promise<string[]> {
+        const version = `${reference}/versions/v-current`;
+        return payloadsByReference.has(version) ? [version] : [];
+      },
       async renderVersion(reference: string): Promise<string | undefined> {
         return payloadsByReference.get(reference);
       },
@@ -33,7 +37,7 @@ describe("ParameterStore", () => {
     return new ParameterStore({ environment: "production", projectId: "brainlesschef", reader });
   }
 
-  it("returns environment variable overrides from latest parameter versions", async () => {
+  it("returns environment variable overrides from the newest parameter versions", async () => {
     const store = makeStore({
       "site-origin": "https://brainlesschef.com",
       "mail-from": "no-reply@brainlesschef.com",

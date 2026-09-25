@@ -23,3 +23,8 @@ variable "api_image" {
   type    = string
   default = "us-east1-docker.pkg.dev/brainlesschef/brainless-chef-development/api:latest"
 }
+
+variable "site_origin" {
+  type    = string
+  default = "https://brainless-chef-development-web-3lfnvnepcq-ue.a.run.app"
+}
