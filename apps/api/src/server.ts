@@ -28,6 +28,7 @@ async function main(): Promise<void> {
     fromEmail: config.mailFrom,
     fromName: "Brainless Chef",
     sandbox: config.mailtrapMode === "sandbox",
+    testInboxId: config.mailtrapTestInboxId,
   });
 
   const app = createApp({ config, database, mailer });

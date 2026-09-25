@@ -140,6 +140,7 @@ resource "google_cloud_run_v2_service" "api" {
   depends_on = [
     google_parameter_manager_parameter_version.mail_from,
     google_parameter_manager_parameter_version.mailtrap_mode,
+    google_parameter_manager_parameter_version.mailtrap_test_inbox_id,
     google_parameter_manager_parameter_version.public_api_url
   ]
 }
@@ -200,6 +201,31 @@ resource "google_parameter_manager_parameter_version" "mailtrap_mode" {
   parameter            = google_parameter_manager_parameter.mailtrap_mode.id
   parameter_version_id = format("v-%s", substr(sha256(var.mailtrap_mode), 0, 16))
   parameter_data       = var.mailtrap_mode
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_parameter_manager_parameter" "mailtrap_test_inbox_id" {
+  count = var.mailtrap_mode == "sandbox" ? 1 : 0
+
+  parameter_id = "${var.environment}-api-mailtrap-test-inbox-id"
+
+  lifecycle {
+    precondition {
+      condition     = var.mailtrap_mode != "sandbox" || var.mailtrap_test_inbox_id != ""
+      error_message = "mailtrap_test_inbox_id is required when mailtrap_mode is sandbox."
+    }
+  }
+}
+
+resource "google_parameter_manager_parameter_version" "mailtrap_test_inbox_id" {
+  count = var.mailtrap_mode == "sandbox" ? 1 : 0
+
+  parameter            = google_parameter_manager_parameter.mailtrap_test_inbox_id[0].id
+  parameter_version_id = format("v-%s", substr(sha256(var.mailtrap_test_inbox_id), 0, 16))
+  parameter_data       = var.mailtrap_test_inbox_id
 
   lifecycle {
     create_before_destroy = true

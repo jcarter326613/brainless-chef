@@ -10,6 +10,7 @@ function validEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
     MAIL_FROM: "no-reply@example.test",
     MAILTRAP_API_TOKEN: "test-token",
     MAILTRAP_MODE: "sandbox",
+    MAILTRAP_TEST_INBOX_ID: "1234567",
     PUBLIC_API_URL: "https://example.test/api",
     COOKIE_SECURE: "true",
     ...overrides,
@@ -30,6 +31,7 @@ describe("loadConfig", () => {
       mailFrom: "no-reply@example.test",
       mailtrapApiToken: "test-token",
       mailtrapMode: "sandbox",
+      mailtrapTestInboxId: 1234567,
       publicApiUrl: "https://example.test/api",
       secureCookies: true,
     });
@@ -69,5 +71,14 @@ describe("loadConfig", () => {
 
   it("rejects an unsupported mailtrap mode", () => {
     expect(() => loadConfig(validEnv({ MAILTRAP_MODE: "invalid" }))).toThrow();
+  });
+
+  it("requires a test inbox ID in sandbox mode", () => {
+    expect(() => loadConfig(without(validEnv(), "MAILTRAP_TEST_INBOX_ID"))).toThrow();
+  });
+
+  it("does not require a test inbox ID in sending mode", () => {
+    expect(loadConfig(without(validEnv({ MAILTRAP_MODE: "sending" }), "MAILTRAP_TEST_INBOX_ID")))
+      .toMatchObject({ mailtrapMode: "sending", mailtrapTestInboxId: undefined });
   });
 });

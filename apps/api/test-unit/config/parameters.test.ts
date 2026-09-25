@@ -51,6 +51,18 @@ describe("ParameterStore", () => {
     });
   });
 
+  it("returns the test inbox ID in sandbox mode", async () => {
+    const store = makeStore({
+      "mailtrap-mode": "sandbox",
+      "mailtrap-test-inbox-id": "1234567",
+    });
+
+    await expect(store.fetchEnvironmentOverrides()).resolves.toEqual({
+      MAILTRAP_MODE: "sandbox",
+      MAILTRAP_TEST_INBOX_ID: "1234567",
+    });
+  });
+
   it("omits overrides for parameters that render without a value", async () => {
     const store = makeStore({});
 

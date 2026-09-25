@@ -28,3 +28,9 @@ variable "site_origin" {
   type    = string
   default = "https://brainless-chef-development-web-3lfnvnepcq-ue.a.run.app"
 }
+
+variable "mailtrap_test_inbox_id" {
+  description = "Mailtrap sandbox inbox ID for development email capture."
+  type        = string
+  default     = ""
+}

@@ -21,9 +21,14 @@ describe("MailService", () => {
       fromEmail: "no-reply@example.com",
       fromName: "Brainless Chef",
       sandbox: true,
+      testInboxId: 1234567,
     });
 
-    expect(MailtrapClient).toHaveBeenCalledWith({ token: "test-token", sandbox: true });
+    expect(MailtrapClient).toHaveBeenCalledWith({
+      token: "test-token",
+      sandbox: true,
+      testInboxId: 1234567,
+    });
 
     const loginUrl = "https://example.test/api/auth/verify-login?token=abc";
     const sent = service.sendLoginLink({ loginUrl, to: "user@example.com" });

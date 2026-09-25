@@ -226,12 +226,20 @@ jobs:
           echo "Timed out waiting for database migration: ${MIGRATION_TASK}" >&2
           exit 1
       - name: Apply Terraform
+        env:
+          MAILTRAP_TEST_INBOX_ID: ${{ vars.MAILTRAP_TEST_INBOX_ID }}
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |
           terraform init -input=false
-          terraform apply -input=false -auto-approve \
-            -var="web_image=${{ steps.image.outputs.repository }}/web:${{ steps.image.outputs.tag }}" \
+          terraform_args=(
+            -var="web_image=${{ steps.image.outputs.repository }}/web:${{ steps.image.outputs.tag }}"
             -var="api_image=${{ steps.image.outputs.repository }}/api:${{ steps.image.outputs.tag }}"
+          )
+          if [[ "${DEPLOYMENT_ENVIRONMENT}" == "development" ]]; then
+            terraform_args+=("-var=mailtrap_test_inbox_id=${MAILTRAP_TEST_INBOX_ID}")
+          fi
+          terraform apply -input=false -auto-approve \
+            "${terraform_args[@]}"
       - name: Print deployed website URL
         working-directory: infrastructure/environments/${{ inputs.environment || 'development' }}
         run: |

@@ -52,3 +52,9 @@ variable "mailtrap_mode" {
   description = "Mailtrap client mode: \"sending\" for real delivery or \"sandbox\" to capture test mail."
   type        = string
 }
+
+variable "mailtrap_test_inbox_id" {
+  description = "Mailtrap sandbox inbox ID. Required when mailtrap_mode is sandbox."
+  type        = string
+  default     = ""
+}

@@ -12,10 +12,15 @@ export class MailService implements Mailer {
   constructor(options: {
     apiToken: string;
     sandbox: boolean;
+    testInboxId?: number;
     fromEmail: string;
     fromName: string;
   }) {
-    this.client = new MailtrapClient({ token: options.apiToken, sandbox: options.sandbox });
+    this.client = new MailtrapClient({
+      token: options.apiToken,
+      sandbox: options.sandbox,
+      ...(options.testInboxId == null ? {} : { testInboxId: options.testInboxId }),
+    });
     this.fromEmail = options.fromEmail;
     this.fromName = options.fromName;
   }

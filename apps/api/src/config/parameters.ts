@@ -1,10 +1,12 @@
 import { ParameterManagerClient } from "@google-cloud/parametermanager";
 
 const PARAMETER_NAMES = ["mail-from", "mailtrap-mode", "public-url"] as const;
+const MAILTRAP_TEST_INBOX_ID_PARAMETER_NAME = "mailtrap-test-inbox-id";
 
 export type RuntimeEnvironmentOverrides = {
   MAIL_FROM?: string;
   MAILTRAP_MODE?: string;
+  MAILTRAP_TEST_INBOX_ID?: string;
   PUBLIC_API_URL?: string;
 };
 
@@ -90,6 +92,20 @@ export class ParameterStore {
     }
     if (mailtrapMode) {
       overrides.MAILTRAP_MODE = mailtrapMode;
+    }
+    if (mailtrapMode === "sandbox") {
+      const [version] = await this.reader.listVersions(
+        parameterReference(
+          this.projectId,
+          this.environment,
+          MAILTRAP_TEST_INBOX_ID_PARAMETER_NAME,
+        ),
+      );
+      const mailtrapTestInboxId =
+        version == null ? undefined : await this.reader.renderVersion(version);
+      if (mailtrapTestInboxId) {
+        overrides.MAILTRAP_TEST_INBOX_ID = mailtrapTestInboxId;
+      }
     }
     if (publicApiUrl) {
       overrides.PUBLIC_API_URL = publicApiUrl;

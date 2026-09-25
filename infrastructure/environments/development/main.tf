@@ -27,4 +27,5 @@ module "cloud_run" {
   site_origin                       = var.site_origin
   mail_from                         = "no-reply@brainlesschef.com"
   mailtrap_mode                     = "sandbox"
+  mailtrap_test_inbox_id            = var.mailtrap_test_inbox_id
 }
